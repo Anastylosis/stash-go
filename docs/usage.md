@@ -166,9 +166,17 @@ var httpErr *stash.HTTPError
 
 switch {
 case errors.As(err, &httpErr) && httpErr.StatusCode == 401:
-    // bad or missing API key
+    // bad or missing API key; httpErr.Body has the server's own message
 case errors.As(err, &apiErr):
-    // reached the resolver; apiErr.Messages says what it objected to
+    // reached the resolver. Each entry keeps the GraphQL `path` and
+    // `extensions`, so you can branch on the failing field or the server's
+    // error code rather than on message text:
+    for _, e := range apiErr.Errors {
+        if e.Extensions["code"] == "GRAPHQL_VALIDATION_FAILED" {
+            // asked for a field this server's schema lacks
+        }
+    }
+    // apiErr.Messages() when the structure is not needed
 }
 ```
 

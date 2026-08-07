@@ -41,28 +41,71 @@ var (
 	ErrStudioNotFound = errors.New("stash: no such studio")
 )
 
+// GraphQLError is one entry from a GraphQL `errors` array.
+//
+// Path and Extensions are kept because they are where a server says something
+// useful: Path names the field that failed, and Stash puts its own error codes
+// in Extensions. Flattening these to a string loses the machine-readable part
+// of the only structured error the API offers.
+type GraphQLError struct {
+	Message    string         `json:"message"`
+	Path       []any          `json:"path,omitempty"`
+	Extensions map[string]any `json:"extensions,omitempty"`
+}
+
 // APIError is one or more errors returned in a GraphQL response body. The
 // request itself succeeded at the HTTP level.
 //
-// Inspect Messages to distinguish a schema mismatch ("Cannot query field …")
+// Inspect Errors to distinguish a schema mismatch ("Cannot query field …")
 // from an authentication failure, rather than matching on error text.
 type APIError struct {
-	Messages []string
+	Errors []GraphQLError
+}
+
+// Messages returns just the message strings, for the common case where the
+// structure is not needed.
+func (e *APIError) Messages() []string {
+	out := make([]string, len(e.Errors))
+	for i, item := range e.Errors {
+		out[i] = item.Message
+	}
+	return out
 }
 
 func (e *APIError) Error() string {
-	return "stash api: " + strings.Join(e.Messages, "; ")
+	switch len(e.Errors) {
+	case 0:
+		// A response with an empty errors array is malformed; say so rather
+		// than returning a bare prefix that reads like a truncated message.
+		return "stash api: empty error array"
+	case 1:
+		return "stash api: " + e.Errors[0].Message
+	default:
+		return "stash api: " + strings.Join(e.Messages(), "; ")
+	}
 }
 
 // HTTPError is a non-2xx response from the server.
+//
+// Body carries what the server actually said, truncated. Stash returns useful
+// text on an auth failure or a bad endpoint, and a bare status code sends the
+// reader to the server logs for something that was already in the response.
 type HTTPError struct {
 	StatusCode int
 	Status     string
+	Body       string
 }
 
 func (e *HTTPError) Error() string {
-	return "stash: unexpected status " + e.Status
+	if e.Body == "" {
+		return "stash: unexpected status " + e.Status
+	}
+	return "stash: unexpected status " + e.Status + ": " + e.Body
 }
+
+// maxErrorBody caps how much of a failing response is quoted back. Enough to
+// carry a real message, short enough to stay readable in a log line.
+const maxErrorBody = 2048
 
 // Client talks to one Stash server. It is safe for concurrent use.
 type Client struct {
@@ -127,9 +170,7 @@ type graphqlRequest struct {
 
 type graphqlResponse struct {
 	Data   json.RawMessage `json:"data"`
-	Errors []struct {
-		Message string `json:"message"`
-	} `json:"errors"`
+	Errors []GraphQLError  `json:"errors"`
 }
 
 // Execute runs a raw GraphQL query or mutation and returns the `data` object.
@@ -162,9 +203,15 @@ func (c *Client) do(ctx context.Context, gql graphqlRequest) (json.RawMessage, e
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		// Drain a bounded amount so the connection can be reused.
-		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4<<10))
-		return nil, &HTTPError{StatusCode: resp.StatusCode, Status: resp.Status}
+		// Read a bounded amount rather than discarding it: Stash puts a real
+		// message here on auth failures and bad endpoints. Reading also lets
+		// the connection be reused.
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorBody))
+		return nil, &HTTPError{
+			StatusCode: resp.StatusCode,
+			Status:     resp.Status,
+			Body:       c.redactString(strings.TrimSpace(string(b))),
+		}
 	}
 
 	respBody, err := io.ReadAll(io.LimitReader(resp.Body, c.maxBytes+1))
@@ -180,13 +227,14 @@ func (c *Client) do(ctx context.Context, gql graphqlRequest) (json.RawMessage, e
 		return nil, fmt.Errorf("stash: parsing response: %w", err)
 	}
 	if len(gqlResp.Errors) > 0 {
-		msgs := make([]string, len(gqlResp.Errors))
+		items := make([]GraphQLError, len(gqlResp.Errors))
 		for i, e := range gqlResp.Errors {
 			// Some GraphQL middlewares echo the request back on auth failure.
 			// Never let the key reach a log line.
-			msgs[i] = c.redactString(e.Message)
+			e.Message = c.redactString(e.Message)
+			items[i] = e
 		}
-		return nil, &APIError{Messages: msgs}
+		return nil, &APIError{Errors: items}
 	}
 	return gqlResp.Data, nil
 }

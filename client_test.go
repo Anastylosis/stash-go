@@ -69,8 +69,11 @@ func TestGraphQLErrorsBecomeAPIError(t *testing.T) {
 	if !errors.As(err, &apiErr) {
 		t.Fatalf("Ping error = %v (%T), want *APIError", err, err)
 	}
-	if len(apiErr.Messages) != 2 {
-		t.Fatalf("Messages = %#v, want 2", apiErr.Messages)
+	if len(apiErr.Errors) != 2 {
+		t.Fatalf("Errors = %#v, want 2", apiErr.Errors)
+	}
+	if got := apiErr.Messages(); got[1] != "second" {
+		t.Errorf("Messages() = %#v", got)
 	}
 	if !strings.Contains(apiErr.Error(), "Cannot query field") {
 		t.Errorf("Error() = %q, missing the server message", apiErr.Error())
@@ -206,5 +209,64 @@ func TestVersion(t *testing.T) {
 	}
 	if v != "v0.28.1" {
 		t.Errorf("Version = %q, want v0.28.1", v)
+	}
+}
+
+// GraphQL errors carry `path` and `extensions`, and that is where a server
+// says something machine-readable. Flattening to a message string throws away
+// the only structured error the API offers.
+func TestAPIErrorKeepsPathAndExtensions(t *testing.T) {
+	_, c := server(t, reply(`{"errors":[{
+	  "message":"Cannot query field \"captions\"",
+	  "path":["findScene","captions"],
+	  "extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}]}`))
+
+	err := c.Ping(context.Background())
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("error = %v (%T), want *APIError", err, err)
+	}
+	item := apiErr.Errors[0]
+	if len(item.Path) != 2 || item.Path[1] != "captions" {
+		t.Errorf("Path = %#v, want the failing field", item.Path)
+	}
+	if item.Extensions["code"] != "GRAPHQL_VALIDATION_FAILED" {
+		t.Errorf("Extensions = %#v", item.Extensions)
+	}
+}
+
+// A bare status code sends the reader to the server logs for something that
+// was already in the response.
+func TestHTTPErrorCarriesTheResponseBody(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = io.WriteString(w, "invalid api key")
+	}))
+	defer srv.Close()
+
+	err := NewClient(srv.URL).Ping(context.Background())
+	var httpErr *HTTPError
+	if !errors.As(err, &httpErr) {
+		t.Fatalf("error = %v (%T), want *HTTPError", err, err)
+	}
+	if httpErr.Body != "invalid api key" {
+		t.Errorf("Body = %q, want the server's message", httpErr.Body)
+	}
+	if !strings.Contains(err.Error(), "invalid api key") {
+		t.Errorf("Error() = %q, should include the body", err)
+	}
+}
+
+// The key must not leak through an error body either.
+func TestHTTPErrorBodyIsRedacted(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = io.WriteString(w, "rejected key hunter2")
+	}))
+	defer srv.Close()
+
+	err := NewClient(srv.URL, WithAPIKey("hunter2")).Ping(context.Background())
+	if strings.Contains(err.Error(), "hunter2") {
+		t.Fatalf("HTTP error body leaks the API key: %q", err)
 	}
 }
