@@ -19,6 +19,18 @@ if err := c.Ping(ctx); err != nil {
 `baseURL` is the server root — `/graphql` is appended. Omit `WithAPIKey` for an
 instance with authentication disabled.
 
+### Inside a Stash plugin
+
+Stash hands a plugin process a session cookie in `server_connection`, and a
+plugin has no API key unless the operator configured one:
+
+```go
+c := stash.NewClient(url, stash.WithCookie(cookie))
+```
+
+Pass both when you have both — the API key wins. Session cookies expire
+mid-run, which on a long task fails partway through rather than at startup.
+
 ### Bring your own HTTP client
 
 ```go

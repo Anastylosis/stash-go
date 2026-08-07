@@ -270,3 +270,49 @@ func TestHTTPErrorBodyIsRedacted(t *testing.T) {
 		t.Fatalf("HTTP error body leaks the API key: %q", err)
 	}
 }
+
+// Stash hands its plugins a session cookie rather than an API key.
+func TestWithCookieAuthenticates(t *testing.T) {
+	var got string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if ck, err := r.Cookie("session"); err == nil {
+			got = ck.Value
+		}
+		_, _ = io.WriteString(w, `{"data":{}}`)
+	}))
+	defer srv.Close()
+
+	c := NewClient(srv.URL, WithCookie(&http.Cookie{Name: "session", Value: "abc"}))
+	if err := c.Ping(context.Background()); err != nil {
+		t.Fatalf("Ping: %v", err)
+	}
+	if got != "abc" {
+		t.Errorf("session cookie = %q, want abc", got)
+	}
+}
+
+// An API key wins when both are configured: session cookies expire mid-run,
+// so on a long task a cookie fails partway through rather than at startup.
+func TestAPIKeyTakesPrecedenceOverCookie(t *testing.T) {
+	var sawKey, sawCookie bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sawKey = r.Header.Get("ApiKey") != ""
+		_, err := r.Cookie("session")
+		sawCookie = err == nil
+		_, _ = io.WriteString(w, `{"data":{}}`)
+	}))
+	defer srv.Close()
+
+	c := NewClient(srv.URL,
+		WithAPIKey("key"),
+		WithCookie(&http.Cookie{Name: "session", Value: "abc"}))
+	if err := c.Ping(context.Background()); err != nil {
+		t.Fatalf("Ping: %v", err)
+	}
+	if !sawKey {
+		t.Error("ApiKey header was not sent")
+	}
+	if sawCookie {
+		t.Error("cookie was sent alongside an API key; the key should win alone")
+	}
+}

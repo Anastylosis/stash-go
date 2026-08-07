@@ -111,6 +111,7 @@ const maxErrorBody = 2048
 type Client struct {
 	endpoint string
 	apiKey   string
+	cookie   *http.Cookie
 	http     *http.Client
 	maxBytes int64
 
@@ -126,6 +127,16 @@ type Option func(*Client)
 // with authentication disabled.
 func WithAPIKey(key string) Option {
 	return func(c *Client) { c.apiKey = key }
+}
+
+// WithCookie authenticates with a session cookie.
+//
+// Stash hands its plugin processes a session cookie in server_connection, and
+// a plugin has no API key unless the operator configured one. An API key takes
+// precedence when both are set: session cookies expire mid-run, which on a
+// long task fails partway through rather than at startup.
+func WithCookie(cookie *http.Cookie) Option {
+	return func(c *Client) { c.cookie = cookie }
 }
 
 // WithHTTPClient supplies the HTTP client used for every request, so retry,
@@ -192,8 +203,12 @@ func (c *Client) do(ctx context.Context, gql graphqlRequest) (json.RawMessage, e
 		return nil, fmt.Errorf("stash: building request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	if c.apiKey != "" {
+	req.Header.Set("Accept", "application/json")
+	switch {
+	case c.apiKey != "":
 		req.Header.Set("ApiKey", c.apiKey)
+	case c.cookie != nil:
+		req.AddCookie(c.cookie)
 	}
 
 	resp, err := c.http.Do(req)
