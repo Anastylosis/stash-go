@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: Anastylosis/.github/.github/workflows/go-ci.yml@v1
+    permissions:
+      contents: read
+      checks: write
+    secrets: inherit
+    with:
+      binary-name: stash-go
+      main-package: .
+      codecov: false
+      # Every test drives an httptest stub, so the suite has to pass with no
+      # outbound network. Anything reaching a real Stash would be a bug.
+      offline-isolation: true
+      platform-tests: true

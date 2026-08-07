@@ -1,0 +1,8 @@
+version: 2
+updates:
+  # gomod only: the module is standard-library-only by design, so this exists
+  # to catch a dependency being added by accident as much as to update one.
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
