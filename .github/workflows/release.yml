@@ -1,0 +1,37 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # artifacts: false — a library has no binary to ship. A Go module is consumed
+  # from its git tag through the module proxy, never from a release asset, so
+  # this exists for the changelog and the release page rather than for files.
+  release:
+    uses: Anastylosis/.github/.github/workflows/go-release.yml@v1
+    permissions:
+      contents: write
+      discussions: write
+      id-token: write
+      attestations: write
+    secrets: inherit
+    with:
+      binary-name: stash-go
+      artifacts: false
+      install-instructions: |
+        ```sh
+        go get github.com/Anastylosis/stash-go@${{ github.ref_name }}
+        ```
+
+        ```go
+        import "github.com/Anastylosis/stash-go"
+        ```
