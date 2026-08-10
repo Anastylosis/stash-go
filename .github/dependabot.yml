@@ -6,3 +6,12 @@ updates:
     directory: /
     schedule:
       interval: weekly
+  # The workflows here reference nothing but Anastylosis/.github@v1, and a
+  # moving major tag is never something to bump — the individual action pins
+  # live in that repo and Dependabot updates them there. This entry is for the
+  # two cases that would otherwise pass unnoticed: a @v2 of the shared
+  # workflows, and any action pinned directly here later on.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
