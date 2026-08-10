@@ -52,7 +52,8 @@ func TestFindSceneDecodesFields(t *testing.T) {
       "tags":[{"id":"1","name":"tag"}],
       "performers":[{"id":"2","name":"perf"}],
       "studio":{"id":"3","name":"studio"},
-      "stash_ids":[{"endpoint":"https://sb","stash_id":"uuid"}]}}}`))
+      "stash_ids":[{"endpoint":"https://sb","stash_id":"uuid"}],
+      "galleries":[{"id":"7","title":"G"}]}}}`))
 
 	scene, found, err := c.FindScene(context.Background(), "12")
 	if err != nil || !found {
@@ -79,6 +80,15 @@ func TestFindSceneDecodesFields(t *testing.T) {
 	}
 	if _, ok := f.Fingerprint("phash"); ok {
 		t.Error("phash reported present")
+	}
+	if len(scene.Galleries) != 1 || scene.Galleries[0].ID != "7" {
+		t.Errorf("galleries = %+v", scene.Galleries)
+	}
+	if !scene.HasStashID() {
+		t.Error("HasStashID reported false for a scene carrying one")
+	}
+	if (&Scene{}).HasStashID() {
+		t.Error("HasStashID reported true for a scene with none")
 	}
 	if scene.Studio == nil || scene.Studio.Name != "studio" {
 		t.Errorf("studio = %+v", scene.Studio)
@@ -226,7 +236,7 @@ func TestUpdateSceneOmitsUnsetFields(t *testing.T) {
 	if input["title"] != "New" {
 		t.Errorf("title = %v", input["title"])
 	}
-	for _, absent := range []string{"code", "details", "director", "date", "rating100", "urls", "tag_ids", "performer_ids", "studio_id", "organized", "stash_ids", "cover_image"} {
+	for _, absent := range []string{"code", "details", "director", "date", "rating100", "urls", "tag_ids", "performer_ids", "studio_id", "gallery_ids", "organized", "stash_ids", "cover_image"} {
 		if _, ok := input[absent]; ok {
 			t.Errorf("unset field %q was sent; a partial update would blank it", absent)
 		}
@@ -260,6 +270,21 @@ func TestUpdateSceneSendsSetFields(t *testing.T) {
 	}
 	if got := ids[0].(map[string]any)["stash_id"]; got != "uuid" {
 		t.Errorf("stash_ids[0].stash_id = %v", got)
+	}
+}
+
+// A caller writing its own query pastes SceneFields into it and decodes the
+// result into Scene, so a field on the type but not in the set is silently
+// zero for them.
+func TestSceneFieldsCoversTheSceneType(t *testing.T) {
+	for _, field := range []string{
+		"id", "title", "code", "date", "details", "director", "urls", "rating100",
+		"organized", "o_counter", "tags", "performers", "studio", "stash_ids",
+		"galleries", "fingerprints", "video_codec", "bit_rate", "width", "height",
+	} {
+		if !strings.Contains(SceneFields, field) {
+			t.Errorf("SceneFields is missing %q, which Scene decodes", field)
+		}
 	}
 }
 

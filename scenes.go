@@ -6,9 +6,15 @@ import (
 	"fmt"
 )
 
-// sceneFields is the selection set shared by the scene queries. Every field
-// here must exist on the oldest supported server — see docs/design.md.
-const sceneFields = `
+// SceneFields is the selection set [Scene] decodes from, exported so a caller
+// writing its own query with [Client.Execute] fills the same type completely
+// rather than maintaining a parallel field list that drifts.
+//
+//	query := `query { findDuplicateScenes { ` + stash.SceneFields + ` } }`
+//
+// Every field here must exist on the oldest supported server — see
+// docs/design.md.
+const SceneFields = `
   id
   title
   code
@@ -38,13 +44,14 @@ const sceneFields = `
   tags { id name }
   performers { id name }
   studio { id name }
-  stash_ids { endpoint stash_id }`
+  stash_ids { endpoint stash_id }
+  galleries { id title }`
 
 // FindScene returns one scene by ID. found is false when no scene has that ID,
 // which is not an error.
 func (c *Client) FindScene(ctx context.Context, id string) (scene *Scene, found bool, err error) {
 	data, err := c.do(ctx, graphqlRequest{
-		Query:     `query($id: ID!) { findScene(id: $id) {` + sceneFields + ` } }`,
+		Query:     `query($id: ID!) { findScene(id: $id) {` + SceneFields + ` } }`,
 		Variables: map[string]any{"id": id},
 	})
 	if err != nil {
@@ -66,7 +73,7 @@ const findScenesQuery = `
 query FindScenes($filter: FindFilterType, $scene_filter: SceneFilterType) {
   findScenes(filter: $filter, scene_filter: $scene_filter) {
     count
-    scenes {` + sceneFields + `
+    scenes {` + SceneFields + `
     }
   }
 }`

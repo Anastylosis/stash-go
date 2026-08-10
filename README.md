@@ -39,7 +39,9 @@ scenes, err := c.FindAllScenes(ctx, stash.SceneFilter{StudioName: "Example"}, ni
   fingerprints come back with every scene, so duplicate detection does not have
   to re-query for them.
 - **An escape hatch.** `Execute` runs any query against the same transport, so
-  an unwrapped corner of the schema does not mean starting over.
+  an unwrapped corner of the schema does not mean starting over — and
+  `SceneFields` drops the standard selection set into your own query, so the
+  result still decodes into `Scene`.
 
 ## Schema differences between versions
 

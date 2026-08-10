@@ -81,11 +81,18 @@ fingerprints qualify — a consumer doing duplicate detection needs hashes and
 resolutions, and a consumer pushing metadata pays a few hundred bytes per scene
 it ignores.
 
-`groups`, `galleries` and `play_count` are deliberately absent. They arrived in
-Stash 0.25–0.27, and including them would raise the floor for everyone to
-support one consumer. **The floor is Stash 0.20**, where `files { … }` replaced
-the flat path/size fields — the selection set could not work at all before it.
-A consumer needing a newer field asks `Supports` and reaches for `Execute`.
+`groups` and `play_count` are deliberately absent. They arrived in Stash
+0.25–0.27, and including them would raise the floor for everyone to support one
+consumer. `galleries` is in, because it is old enough to cost nothing.
+
+**The floor is Stash 0.20**, where `files { … }` replaced the flat path/size
+fields — the selection set could not work at all before it. A consumer needing
+a newer field asks `Supports` and reaches for `Execute`.
+
+The set is exported as `SceneFields` so a consumer writing its own query still
+decodes into `Scene` completely. A field list copied by hand is a field list
+that drifts: the type gains a field, the copy does not, and the value is
+silently zero.
 
 ## Partial updates
 

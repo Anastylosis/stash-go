@@ -17,7 +17,11 @@ type Scene struct {
 	Performers []Performer `json:"performers"`
 	Studio     *Studio     `json:"studio"`
 	StashIDs   []StashID   `json:"stash_ids"`
+	Galleries  []Gallery   `json:"galleries"`
 }
+
+// HasStashID reports whether the scene carries stash-box metadata.
+func (s *Scene) HasStashID() bool { return len(s.StashIDs) > 0 }
 
 // PrimaryFile returns the file Stash treats as canonical, or nil when the
 // scene has none.
@@ -81,6 +85,12 @@ type Studio struct {
 	Name string `json:"name"`
 }
 
+// Gallery attached to a scene.
+type Gallery struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+}
+
 // StashID links a scene to its entry in an external stash-box instance.
 // Endpoint is the stash-box GraphQL URL; ID is the remote UUID.
 type StashID struct {
@@ -105,6 +115,7 @@ type SceneUpdate struct {
 	TagIDs       []string  `json:"tag_ids,omitempty"`
 	PerformerIDs []string  `json:"performer_ids,omitempty"`
 	StudioID     *string   `json:"studio_id,omitempty"`
+	GalleryIDs   []string  `json:"gallery_ids,omitempty"`
 	Organized    *bool     `json:"organized,omitempty"`
 	StashIDs     []StashID `json:"stash_ids,omitempty"`
 

@@ -51,8 +51,10 @@ scene, found, err := c.FindScene(ctx, "42")
 
 Every scene query returns the same selection set: the scene's own metadata
 (`Title`, `Code`, `Details`, `Director`, `Date`, `URLs`, `Rating100`,
-`Organized`, `OCounter`), its `Tags`, `Performers`, `Studio` and `StashIDs`,
-and its files.
+`Organized`, `OCounter`), its `Tags`, `Performers`, `Studio`, `StashIDs` and
+`Galleries`, and its files.
+
+`scene.HasStashID()` reports whether stash-box metadata is attached.
 
 ### Files and fingerprints
 
@@ -137,9 +139,10 @@ Everything unset is left as it was. The pointer is what distinguishes "set this
 to empty" (`&""`) from "do not touch this" (`nil`).
 
 Settable: `Title`, `Code`, `Details`, `Director`, `Date`, `Rating100`, `URLs`,
-`TagIDs`, `PerformerIDs`, `StudioID`, `Organized`, `StashIDs`, `CoverImage`.
+`TagIDs`, `PerformerIDs`, `StudioID`, `GalleryIDs`, `Organized`, `StashIDs`,
+`CoverImage`.
 
-The list fields (`URLs`, `TagIDs`, `PerformerIDs`, `StashIDs`) **replace** what
+The list fields (`URLs`, `TagIDs`, `PerformerIDs`, `GalleryIDs`, `StashIDs`) **replace** what
 is there rather than adding to it, so union them with the scene's current
 values first if that is what you mean. Being slices, they are omitted when nil
 and cannot express "clear this list" — use `Execute` for that.
@@ -206,6 +209,19 @@ data, err := c.Execute(ctx, `query($id: ID!) {
 
 `Execute` returns the raw `data` object with the same transport, auth, size
 limits and error handling as the typed methods.
+
+When your query returns scenes, paste in `SceneFields` and decode into `Scene`
+rather than declaring a parallel type and field list that drift apart:
+
+```go
+query := `query { findDuplicateScenes(distance: 4) { ` + stash.SceneFields + ` } }`
+data, err := c.Execute(ctx, query, nil)
+
+var result struct {
+    Groups [][]stash.Scene `json:"findDuplicateScenes"`
+}
+err = json.Unmarshal(data, &result)
+```
 
 ## Errors
 
