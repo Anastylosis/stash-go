@@ -49,6 +49,32 @@ scene, found, err := c.FindScene(ctx, "42")
 
 `found` is false when no scene has that ID. That is not an error.
 
+Every scene query returns the same selection set: the scene's own metadata
+(`Title`, `Code`, `Details`, `Director`, `Date`, `URLs`, `Rating100`,
+`Organized`, `OCounter`), its `Tags`, `Performers`, `Studio` and `StashIDs`,
+and its files.
+
+### Files and fingerprints
+
+`Scene.Files` carries the full video-file record — path, size, dimensions,
+codecs, bitrate, frame rate and content hashes:
+
+```go
+if f := scene.PrimaryFile(); f != nil {
+    fmt.Println(f.Path, f.Width, f.Height, f.Size)
+    if hash, ok := f.Fingerprint("phash"); ok {
+        // perceptual hash, for duplicate detection
+    }
+}
+```
+
+`PrimaryFile` is the first file, the one Stash treats as canonical; it returns
+nil for a scene with no files. `Fingerprint` looks up a hash by type
+(`"oshash"`, `"phash"`, `"md5"`).
+
+A scene has more than one file when Stash has attached re-detected duplicates
+to it, which is the case deduplication tools care about.
+
 ### Filtering
 
 ```go
@@ -110,6 +136,14 @@ err := c.UpdateScene(ctx, stash.SceneUpdate{
 Everything unset is left as it was. The pointer is what distinguishes "set this
 to empty" (`&""`) from "do not touch this" (`nil`).
 
+Settable: `Title`, `Code`, `Details`, `Director`, `Date`, `Rating100`, `URLs`,
+`TagIDs`, `PerformerIDs`, `StudioID`, `Organized`, `StashIDs`, `CoverImage`.
+
+The list fields (`URLs`, `TagIDs`, `PerformerIDs`, `StashIDs`) **replace** what
+is there rather than adding to it, so union them with the scene's current
+values first if that is what you mean. Being slices, they are omitted when nil
+and cannot express "clear this list" — use `Execute` for that.
+
 ### Cover images
 
 `CoverImage` takes a data URI you have already produced:
@@ -144,6 +178,9 @@ id, err := c.CreateTag(ctx, name)
 ```
 
 ## Older servers
+
+Stash 0.20 or newer is required: the shared selection set asks for the
+`files { … }` record introduced there. Everything in it has existed since.
 
 Asking for a field the schema lacks fails the **whole** query, not just that
 field:

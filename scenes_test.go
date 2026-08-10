@@ -43,9 +43,12 @@ func TestFindSceneNotFoundIsNotAnError(t *testing.T) {
 
 func TestFindSceneDecodesFields(t *testing.T) {
 	_, c := server(t, reply(`{"data":{"findScene":{
-      "id":"12","title":"T","date":"2024-01-02","organized":true,
+      "id":"12","title":"T","code":"ABC-1","date":"2024-01-02","organized":true,
+      "director":"D","rating100":75,"o_counter":3,
       "urls":["https://e/1"],
-      "files":[{"basename":"a.mp4","path":"/v/a.mp4","duration":1800.5}],
+      "files":[{"id":"9","basename":"a.mp4","path":"/v/a.mp4","duration":1800.5,
+        "size":123456789,"width":3840,"height":2160,"video_codec":"h264","bit_rate":8000000,
+        "fingerprints":[{"type":"oshash","value":"deadbeef"}]}],
       "tags":[{"id":"1","name":"tag"}],
       "performers":[{"id":"2","name":"perf"}],
       "studio":{"id":"3","name":"studio"},
@@ -58,8 +61,24 @@ func TestFindSceneDecodesFields(t *testing.T) {
 	if scene.Title != "T" || !scene.Organized {
 		t.Errorf("scene = %+v", scene)
 	}
+	if scene.Code != "ABC-1" || scene.Director != "D" || scene.OCounter != 3 {
+		t.Errorf("scene = %+v", scene)
+	}
+	if scene.Rating100 == nil || *scene.Rating100 != 75 {
+		t.Errorf("rating100 = %v", scene.Rating100)
+	}
 	if len(scene.Files) != 1 || scene.Files[0].Duration != 1800.5 {
 		t.Errorf("files = %+v", scene.Files)
+	}
+	f := scene.PrimaryFile()
+	if f == nil || f.ID != "9" || f.Size != 123456789 || f.Height != 2160 || f.BitRate != 8000000 {
+		t.Errorf("primary file = %+v", f)
+	}
+	if v, ok := f.Fingerprint("oshash"); !ok || v != "deadbeef" {
+		t.Errorf("oshash = %q, %v", v, ok)
+	}
+	if _, ok := f.Fingerprint("phash"); ok {
+		t.Error("phash reported present")
 	}
 	if scene.Studio == nil || scene.Studio.Name != "studio" {
 		t.Errorf("studio = %+v", scene.Studio)
@@ -207,10 +226,40 @@ func TestUpdateSceneOmitsUnsetFields(t *testing.T) {
 	if input["title"] != "New" {
 		t.Errorf("title = %v", input["title"])
 	}
-	for _, absent := range []string{"details", "date", "urls", "tag_ids", "performer_ids", "studio_id", "organized", "cover_image"} {
+	for _, absent := range []string{"code", "details", "director", "date", "rating100", "urls", "tag_ids", "performer_ids", "studio_id", "organized", "stash_ids", "cover_image"} {
 		if _, ok := input[absent]; ok {
 			t.Errorf("unset field %q was sent; a partial update would blank it", absent)
 		}
+	}
+}
+
+func TestUpdateSceneSendsSetFields(t *testing.T) {
+	cap := &capture{}
+	srv := httptest.NewServer(cap.handler(`{"data":{"sceneUpdate":{"id":"1"}}}`))
+	defer srv.Close()
+
+	code, director, rating := "ABC-123", "Someone", 80
+	err := NewClient(srv.URL).UpdateScene(context.Background(), SceneUpdate{
+		ID:        "1",
+		Code:      &code,
+		Director:  &director,
+		Rating100: &rating,
+		StashIDs:  []StashID{{Endpoint: "https://sb", ID: "uuid"}},
+	})
+	if err != nil {
+		t.Fatalf("UpdateScene: %v", err)
+	}
+
+	input := cap.reqs[0].Variables["input"].(map[string]any)
+	if input["code"] != "ABC-123" || input["director"] != "Someone" || input["rating100"] != float64(80) {
+		t.Errorf("input = %v", input)
+	}
+	ids, ok := input["stash_ids"].([]any)
+	if !ok || len(ids) != 1 {
+		t.Fatalf("stash_ids = %v", input["stash_ids"])
+	}
+	if got := ids[0].(map[string]any)["stash_id"]; got != "uuid" {
+		t.Errorf("stash_ids[0].stash_id = %v", got)
 	}
 }
 

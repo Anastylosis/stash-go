@@ -67,6 +67,26 @@ caller can ask before it commits to a selection set. The alternative — issue t
 query, parse the failure, retry without the field — is slower and guesses at
 error text.
 
+## One selection set, and where it stops
+
+Every scene query sends the same field list. Per-call selection sets would let
+each caller ask for exactly what it uses, at the cost of a query-building API,
+a Scene type full of fields that may or may not be populated, and no single
+place to check what this package requires of a server.
+
+So the list is fixed, and the rule for adding to it is: the field must exist in
+every supported server version, and it must be cheap. Scene scalars (`code`,
+`director`, `rating100`, `o_counter`) and the video-file record including
+fingerprints qualify — a consumer doing duplicate detection needs hashes and
+resolutions, and a consumer pushing metadata pays a few hundred bytes per scene
+it ignores.
+
+`groups`, `galleries` and `play_count` are deliberately absent. They arrived in
+Stash 0.25–0.27, and including them would raise the floor for everyone to
+support one consumer. **The floor is Stash 0.20**, where `files { … }` replaced
+the flat path/size fields — the selection set could not work at all before it.
+A consumer needing a newer field asks `Supports` and reaches for `Execute`.
+
 ## Partial updates
 
 `SceneUpdate`'s optional fields are pointers and slices with `omitempty`, so an

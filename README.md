@@ -35,10 +35,15 @@ scenes, err := c.FindAllScenes(ctx, stash.SceneFilter{StudioName: "Example"}, ni
   visible.
 - **The API key never reaches an error string.** Some GraphQL middlewares echo
   the request back on auth failure; those messages get logged.
+- **Scenes with their files.** Path, size, resolution, codecs and content
+  fingerprints come back with every scene, so duplicate detection does not have
+  to re-query for them.
 - **An escape hatch.** `Execute` runs any query against the same transport, so
   an unwrapped corner of the schema does not mean starting over.
 
 ## Schema differences between versions
+
+Stash 0.20 or newer is required.
 
 GraphQL fails the **whole** query when asked for a field the schema lacks — one
 unknown field costs the entire response, not just that field. Against an older
@@ -69,11 +74,25 @@ err := c.UpdateScene(ctx, stash.SceneUpdate{ID: id, Title: &title})
 - [docs/design.md](docs/design.md) — why the client is shaped this way, and
   what it deliberately does not do
 
+## Tests
+
+`go test ./...` needs no network — every test drives an `httptest` stub.
+
+A second suite runs against a real server. It is read-only: it queries, and
+never creates, updates or deletes anything.
+
+```sh
+STASH_URL=http://your-server:9999 STASH_API_KEY=… go test -tags integration ./...
+```
+
+Without a reachable server the whole suite skips.
+
 ## Status
 
-Early. The surface covers scenes and the tag/performer/studio entities that
-metadata pushes need. Operations for deduplication work — merging scenes,
-moving and deleting files — are next; `Execute` covers them meanwhile.
+Early. The surface covers scenes with their files, and the
+tag/performer/studio entities that metadata pushes need. Operations for
+deduplication work — merging scenes, moving and deleting files — are next;
+`Execute` covers them meanwhile.
 
 ## License
 

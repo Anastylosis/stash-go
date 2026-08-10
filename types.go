@@ -4,10 +4,14 @@ package stash
 type Scene struct {
 	ID         string      `json:"id"`
 	Title      string      `json:"title"`
+	Code       string      `json:"code"`
 	Date       string      `json:"date"`
 	Details    string      `json:"details"`
+	Director   string      `json:"director"`
 	URLs       []string    `json:"urls"`
+	Rating100  *int        `json:"rating100"`
 	Organized  bool        `json:"organized"`
+	OCounter   int         `json:"o_counter"`
 	Files      []File      `json:"files"`
 	Tags       []Tag       `json:"tags"`
 	Performers []Performer `json:"performers"`
@@ -15,12 +19,48 @@ type Scene struct {
 	StashIDs   []StashID   `json:"stash_ids"`
 }
 
+// PrimaryFile returns the file Stash treats as canonical, or nil when the
+// scene has none.
+func (s *Scene) PrimaryFile() *File {
+	if len(s.Files) == 0 {
+		return nil
+	}
+	return &s.Files[0]
+}
+
 // File is one video file backing a scene. A scene has several when Stash has
 // attached re-detected duplicates to it.
 type File struct {
-	Basename string  `json:"basename"`
-	Path     string  `json:"path"`
-	Duration float64 `json:"duration"`
+	ID           string        `json:"id"`
+	Basename     string        `json:"basename"`
+	Path         string        `json:"path"`
+	Size         int64         `json:"size"`
+	ModTime      string        `json:"mod_time"`
+	Format       string        `json:"format"`
+	Width        int           `json:"width"`
+	Height       int           `json:"height"`
+	Duration     float64       `json:"duration"`
+	VideoCodec   string        `json:"video_codec"`
+	AudioCodec   string        `json:"audio_codec"`
+	FrameRate    float64       `json:"frame_rate"`
+	BitRate      int64         `json:"bit_rate"`
+	Fingerprints []Fingerprint `json:"fingerprints"`
+}
+
+// Fingerprint returns the value of the named hash ("oshash", "phash", "md5").
+func (f *File) Fingerprint(kind string) (string, bool) {
+	for _, fp := range f.Fingerprints {
+		if fp.Type == kind {
+			return fp.Value, true
+		}
+	}
+	return "", false
+}
+
+// Fingerprint is one content hash of a file.
+type Fingerprint struct {
+	Type  string `json:"type"`
+	Value string `json:"value"`
 }
 
 // Tag attached to a scene.
@@ -54,15 +94,19 @@ type StashID struct {
 // written. That is what makes a partial metadata push non-destructive — an
 // unset Title leaves the existing title alone rather than clearing it.
 type SceneUpdate struct {
-	ID           string   `json:"id"`
-	Title        *string  `json:"title,omitempty"`
-	Details      *string  `json:"details,omitempty"`
-	Date         *string  `json:"date,omitempty"`
-	URLs         []string `json:"urls,omitempty"`
-	TagIDs       []string `json:"tag_ids,omitempty"`
-	PerformerIDs []string `json:"performer_ids,omitempty"`
-	StudioID     *string  `json:"studio_id,omitempty"`
-	Organized    *bool    `json:"organized,omitempty"`
+	ID           string    `json:"id"`
+	Title        *string   `json:"title,omitempty"`
+	Code         *string   `json:"code,omitempty"`
+	Details      *string   `json:"details,omitempty"`
+	Director     *string   `json:"director,omitempty"`
+	Date         *string   `json:"date,omitempty"`
+	Rating100    *int      `json:"rating100,omitempty"`
+	URLs         []string  `json:"urls,omitempty"`
+	TagIDs       []string  `json:"tag_ids,omitempty"`
+	PerformerIDs []string  `json:"performer_ids,omitempty"`
+	StudioID     *string   `json:"studio_id,omitempty"`
+	Organized    *bool     `json:"organized,omitempty"`
+	StashIDs     []StashID `json:"stash_ids,omitempty"`
 
 	// CoverImage is a data URI ("data:image/jpeg;base64,…").
 	//

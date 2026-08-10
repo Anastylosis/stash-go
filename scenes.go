@@ -6,16 +6,35 @@ import (
 	"fmt"
 )
 
-// sceneFields is the selection set shared by the scene queries. Kept in one
-// place so a field added here reaches every caller.
+// sceneFields is the selection set shared by the scene queries. Every field
+// here must exist on the oldest supported server — see docs/design.md.
 const sceneFields = `
   id
   title
+  code
   date
   details
+  director
   urls
+  rating100
   organized
-  files { basename path duration }
+  o_counter
+  files {
+    id
+    basename
+    path
+    size
+    mod_time
+    format
+    width
+    height
+    duration
+    video_codec
+    audio_codec
+    frame_rate
+    bit_rate
+    fingerprints { type value }
+  }
   tags { id name }
   performers { id name }
   studio { id name }
