@@ -98,4 +98,6 @@ deduplication work — merging scenes, moving and deleting files — are next;
 
 ## License
 
+Copyright (C) 2026 Wasylq
+
 GPL-3.0-only.
