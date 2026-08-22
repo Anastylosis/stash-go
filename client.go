@@ -118,6 +118,11 @@ type Client struct {
 	capsOnce sync.Once
 	caps     map[string]bool
 	capsErr  error
+
+	// wantCaptions is set by [WithCaptions]. Off by default so a client
+	// that does not care about captions issues exactly the requests it
+	// always did — including no introspection probe.
+	wantCaptions bool
 }
 
 // Option configures a Client.
@@ -158,6 +163,19 @@ func WithMaxResponseBytes(n int64) Option {
 			c.maxBytes = n
 		}
 	}
+}
+
+// WithCaptions asks the scene queries to include [Scene.Captions].
+//
+// Off by default, and not merely as a matter of taste: Scene.captions does
+// not exist on every supported server, and GraphQL fails the whole query
+// when asked for a field the schema lacks. Honouring this therefore costs
+// one introspection request, cached for the client's lifetime, which a
+// caller that does not want captions should not have to pay. With the
+// option set and the field absent, scene queries run unchanged and
+// [Scene.Captions] stays nil rather than erroring.
+func WithCaptions() Option {
+	return func(c *Client) { c.wantCaptions = true }
 }
 
 // NewClient returns a client for the Stash server at baseURL, which is the

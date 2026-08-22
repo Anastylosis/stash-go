@@ -47,11 +47,42 @@ const SceneFields = `
   stash_ids { endpoint stash_id }
   galleries { id title }`
 
+// sceneCaptionFields is the optional captions selection. Deliberately not
+// part of [SceneFields]: that constant is contracted to name only fields the
+// oldest supported server has, and asking for one it lacks fails the whole
+// query rather than that field.
+const sceneCaptionFields = `
+  captions { language_code caption_type }`
+
+// sceneSelection is [SceneFields] plus any optional field the caller asked
+// for and this server turns out to have.
+//
+// Nothing is probed unless an option asked for it: a client that never
+// wants captions issues exactly the requests it always did, and pays no
+// introspection round trip to find that out.
+//
+// When captions were requested, an introspection failure is treated as
+// "unsupported" rather than returned. A server that will not answer __type
+// says nothing about whether it has captions, and failing every scene query
+// over a probe would be the worse trade. [Client.Supports] caches its
+// answer for the client's lifetime, so a transient failure costs captions
+// for that client rather than for one call — build a new client to
+// re-probe.
+func (c *Client) sceneSelection(ctx context.Context) string {
+	if !c.wantCaptions {
+		return SceneFields
+	}
+	if ok, err := c.Supports(ctx, "captions"); err == nil && ok {
+		return SceneFields + sceneCaptionFields
+	}
+	return SceneFields
+}
+
 // FindScene returns one scene by ID. found is false when no scene has that ID,
 // which is not an error.
 func (c *Client) FindScene(ctx context.Context, id string) (scene *Scene, found bool, err error) {
 	data, err := c.do(ctx, graphqlRequest{
-		Query:     `query($id: ID!) { findScene(id: $id) {` + SceneFields + ` } }`,
+		Query:     `query($id: ID!) { findScene(id: $id) {` + c.sceneSelection(ctx) + ` } }`,
 		Variables: map[string]any{"id": id},
 	})
 	if err != nil {
@@ -69,14 +100,18 @@ func (c *Client) FindScene(ctx context.Context, id string) (scene *Scene, found 
 	return result.FindScene, true, nil
 }
 
-const findScenesQuery = `
+// findScenesQuery is built per call rather than being a constant: the
+// selection set depends on what the server supports.
+func findScenesQuery(selection string) string {
+	return `
 query FindScenes($filter: FindFilterType, $scene_filter: SceneFilterType) {
   findScenes(filter: $filter, scene_filter: $scene_filter) {
     count
-    scenes {` + SceneFields + `
+    scenes {` + selection + `
     }
   }
 }`
+}
 
 // FindScenes returns one page of scenes plus the total count matching the
 // filter. Pages are 1-based and sorted by path, so paging is stable.
@@ -147,7 +182,7 @@ func (c *Client) FindScenes(ctx context.Context, filter SceneFilter, page, perPa
 		vars["scene_filter"] = sceneFilter
 	}
 
-	data, err := c.do(ctx, graphqlRequest{Query: findScenesQuery, Variables: vars})
+	data, err := c.do(ctx, graphqlRequest{Query: findScenesQuery(c.sceneSelection(ctx)), Variables: vars})
 	if err != nil {
 		return nil, 0, fmt.Errorf("stash: finding scenes (page %d): %w", page, err)
 	}

@@ -18,6 +18,12 @@ type Scene struct {
 	Studio     *Studio     `json:"studio"`
 	StashIDs   []StashID   `json:"stash_ids"`
 	Galleries  []Gallery   `json:"galleries"`
+	// Captions is populated only when the server's schema has
+	// Scene.captions — the scene queries probe for it once and add the
+	// field when it is there (see sceneSelection). nil therefore means
+	// either "this scene has no captions" or "this server is too old to
+	// say"; [Client.Supports] tells the two apart when it matters.
+	Captions []Caption `json:"captions"`
 }
 
 // HasStashID reports whether the scene carries stash-box metadata.
@@ -62,6 +68,21 @@ func (f *File) Fingerprint(kind string) (string, bool) {
 }
 
 // Fingerprint is one content hash of a file.
+// Caption is one subtitle track Stash has attached to a scene. Stash
+// discovers these by scanning for sidecar files next to the video; they are
+// read-only in GraphQL, so a caption cannot be attached over the API — only
+// written to disk and picked up by [Client.MetadataScan].
+//
+// LanguageCode is the bare ISO 639 subtag Stash parsed off the filename
+// (`clip.pt.srt` gives "pt"). Stash parses it with language.ParseBase and
+// silently attaches nothing for anything it cannot parse, so a regional tag
+// never appears here — a file named `clip.pt-BR.srt` is simply not a
+// caption as far as Stash is concerned.
+type Caption struct {
+	LanguageCode string `json:"language_code"`
+	CaptionType  string `json:"caption_type"`
+}
+
 type Fingerprint struct {
 	Type  string `json:"type"`
 	Value string `json:"value"`
