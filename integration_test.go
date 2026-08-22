@@ -11,12 +11,17 @@ import (
 // These run against a real Stash server: `go test -tags integration`.
 // STASH_URL defaults to http://localhost:9999; STASH_API_KEY may be empty.
 // Everything here is read-only — nothing creates, updates or deletes.
+// stashURL is the server under test, defaulting to a local Stash.
+func stashURL() string {
+	if url := os.Getenv("STASH_URL"); url != "" {
+		return url
+	}
+	return "http://localhost:9999"
+}
+
 func client(t *testing.T) *Client {
 	t.Helper()
-	url := os.Getenv("STASH_URL")
-	if url == "" {
-		url = "http://localhost:9999"
-	}
+	url := stashURL()
 	c := NewClient(url, WithAPIKey(os.Getenv("STASH_API_KEY")))
 	if err := c.Ping(context.Background()); err != nil {
 		t.Skipf("Stash not reachable at %s: %v", url, err)
@@ -242,5 +247,94 @@ func TestLiveUnknownFilterTargetsAreErrors(t *testing.T) {
 	}
 	if _, _, err := c.FindScenes(ctx, SceneFilter{StudioName: "stash_go_nonexistent_42xyz"}, 1, 5); err == nil {
 		t.Error("want ErrStudioNotFound")
+	}
+}
+
+// -- captions, configuration and jobs ---------------------------------------
+
+// The captions probe has to agree with what the server actually accepts:
+// if Supports says yes but the field then fails the query, every scene
+// fetch breaks at once.
+func TestLiveCaptionsSelection(t *testing.T) {
+	c := client(t)
+	ctx := context.Background()
+
+	supported, err := c.Supports(ctx, "captions")
+	if err != nil {
+		t.Fatalf("Supports: %v", err)
+	}
+	t.Logf("Scene.captions supported: %v", supported)
+
+	withCaptions := NewClient(stashURL(), WithAPIKey(os.Getenv("STASH_API_KEY")), WithCaptions())
+	scenes, _, err := withCaptions.FindScenes(ctx, SceneFilter{}, 1, 5)
+	if err != nil {
+		t.Fatalf("FindScenes with captions: %v", err)
+	}
+	if len(scenes) == 0 {
+		t.Skip("no scenes in Stash")
+	}
+	for _, s := range scenes {
+		for _, cap := range s.Captions {
+			if cap.LanguageCode == "" {
+				t.Errorf("scene %s has a caption with no language code", s.ID)
+			}
+		}
+	}
+}
+
+// A client without the option must still decode scenes, and must leave
+// Captions nil — the default path is the one every existing caller is on.
+func TestLiveScenesWithoutCaptionsOption(t *testing.T) {
+	c := client(t)
+	scenes := sample(t, c, 3)
+	for _, s := range scenes {
+		if s.Captions != nil {
+			t.Errorf("scene %s carried captions without WithCaptions", s.ID)
+		}
+	}
+}
+
+func TestLivePluginSettings(t *testing.T) {
+	c := client(t)
+	ctx := context.Background()
+
+	// An unknown plugin is the case that must not error, and it is the one
+	// safe to assert against any server.
+	got, err := c.PluginSettings(ctx, "definitely-not-a-real-plugin")
+	if err != nil {
+		t.Fatalf("PluginSettings(unknown): %v", err)
+	}
+	if len(got) != 0 {
+		t.Errorf("unknown plugin returned %v, want empty", got)
+	}
+
+	all, err := c.Configuration(ctx)
+	if err != nil {
+		t.Fatalf("Configuration: %v", err)
+	}
+	if _, ok := all["plugins"]; !ok {
+		t.Error("configuration carried no plugins section")
+	}
+}
+
+// jobQueue is read-only and answers on an idle server too — nothing here
+// starts a job. Scanning is deliberately untested against a live library:
+// a scan is an hours-long mutation, not something a test should trigger.
+func TestLiveJobQueue(t *testing.T) {
+	c := client(t)
+	ctx := context.Background()
+
+	if _, err := c.JobQueue(ctx); err != nil {
+		t.Fatalf("JobQueue: %v", err)
+	}
+
+	// An id nothing could plausibly hold: aged out or never existed, both
+	// of which must read as not-found rather than an error.
+	_, found, err := c.FindJob(ctx, "99999999")
+	if err != nil {
+		t.Fatalf("FindJob: %v", err)
+	}
+	if found {
+		t.Log("job 99999999 exists on this server; skipping the not-found assertion")
 	}
 }

@@ -38,6 +38,13 @@ scenes, err := c.FindAllScenes(ctx, stash.SceneFilter{StudioName: "Example"}, ni
 - **Scenes with their files.** Path, size, resolution, codecs and content
   fingerprints come back with every scene, so duplicate detection does not have
   to re-query for them.
+- **Captions, when the server has them.** `WithCaptions()` adds
+  `Scene.Captions` to the scene queries, probing once to check the field
+  exists rather than failing every query on a server that lacks it.
+- **Plugin settings.** `PluginSettings("your-plugin")` reads what the user
+  configured in the Stash UI, which is how a Go plugin gets its own config.
+- **Tasks and their jobs.** `MetadataScan` starts a scan — the only way to
+  make Stash notice a file that appeared on disk — and `FindJob` follows it.
 - **An escape hatch.** `Execute` runs any query against the same transport, so
   an unwrapped corner of the schema does not mean starting over — and
   `SceneFields` drops the standard selection set into your own query, so the
@@ -59,6 +66,17 @@ if ok, _ := c.Supports(ctx, "captions"); ok {
 
 Introspection runs once per client and is cached.
 
+`Scene.captions` is the field this matters most for, so it has an option of
+its own. It is off by default: honouring it costs an introspection request,
+and a caller that does not want captions should not pay for one.
+
+```go
+c := stash.NewClient(url, stash.WithCaptions())
+```
+
+With the option set and the field absent, scene queries run unchanged and
+`Scene.Captions` stays nil rather than erroring.
+
 ## Partial updates are non-destructive
 
 `SceneUpdate` sends only the fields you set. An unset `Title` leaves the
@@ -68,6 +86,41 @@ existing title alone rather than clearing it.
 title := "Corrected"
 err := c.UpdateScene(ctx, stash.SceneUpdate{ID: id, Title: &title})
 ```
+
+## Scanning, and why it matters for subtitles
+
+Captions are read-only in GraphQL. A subtitle is attached by writing a
+sidecar next to the video and making Stash scan for it — there is no
+mutation that attaches one.
+
+```go
+job, err := c.MetadataScan(ctx, stash.ScanOptions{Paths: []string{dir}})
+```
+
+Every generate flag defaults to off. That is *not* Stash's own default, which
+remembers whatever was ticked last in the UI — a library call that quietly
+started generating covers, previews and sprites across a library would be an
+expensive surprise. Ask for what you want:
+
+```go
+stash.ScanOptions{Paths: []string{dir}, GeneratePhashes: true}
+```
+
+Scanning is a background job, so `MetadataScan` returns an id rather than
+waiting:
+
+```go
+for {
+    j, found, err := c.FindJob(ctx, job)
+    if err != nil || !found || j.Status.Done() {
+        break
+    }
+    time.Sleep(2 * time.Second)
+}
+```
+
+`Status.Done()` covers all three terminal states — treating `CANCELLED` as
+still-running turns that loop into a hang.
 
 ## Documentation
 
@@ -91,10 +144,15 @@ Without a reachable server the whole suite skips.
 
 ## Status
 
-Early. The surface covers scenes with their files, and the
-tag/performer/studio entities that metadata pushes need. Operations for
-deduplication work — merging scenes, moving and deleting files — are next;
-`Execute` covers them meanwhile.
+Early. The surface covers scenes with their files and captions, the
+tag/performer/studio entities that metadata pushes need, plugin settings, and
+the scan/job pair. Operations for deduplication work — merging scenes, moving
+and deleting files — are next; `Execute` covers them meanwhile.
+
+`MetadataScan` is the one call the live suite does not exercise: a scan is an
+hours-long mutation against a real library, not something a test should start.
+Its request shape is pinned by unit tests and checked against the server's own
+schema introspection.
 
 ## License
 
