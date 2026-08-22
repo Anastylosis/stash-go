@@ -128,6 +128,8 @@ still-running turns that loop into a hang.
   ensuring tags/performers/studios exist
 - [docs/design.md](docs/design.md) — why the client is shaped this way, and
   what it deliberately does not do
+- [CONTRIBUTING.md](CONTRIBUTING.md) — cutting a release, and the two
+  constraints any addition has to respect
 
 ## Tests
 

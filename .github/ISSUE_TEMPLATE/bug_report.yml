@@ -1,0 +1,60 @@
+name: Bug Report
+description: Report a bug or unexpected behavior
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened? What did you expect instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps to trigger the bug — a short Go snippet is ideal.
+      placeholder: |
+        c := stash.NewClient("http://localhost:9999")
+        scenes, _, err := c.FindScenes(ctx, stash.SceneFilter{}, 1, 10)
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: Output / error message
+      description: Paste the error. A `*stash.APIError` carries the GraphQL messages verbatim, which is usually the useful part.
+      render: text
+
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: stash-go version, Go version, and the Stash server version (`c.Version(ctx)`)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Scenes and files
+        - Tags / performers / studios
+        - Captions
+        - Tasks and jobs (scan, job status)
+        - Configuration / plugin settings
+        - Transport, auth or errors
+        - Other
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: schema
+    attributes:
+      label: Schema mismatch
+      description: GraphQL fails the whole query when asked for a field the server lacks, so this is worth ruling out first.
+      options:
+        - label: I checked whether the field exists on my server (`c.Supports(ctx, "field")`)

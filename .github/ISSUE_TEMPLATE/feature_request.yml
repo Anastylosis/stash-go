@@ -1,0 +1,29 @@
+name: Feature Request
+description: Suggest an improvement
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do that stash-go doesn't support?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How should it work? Alternatives you considered are welcome.
+    validations:
+      required: true
+
+  - type: textarea
+    id: escape-hatch
+    attributes:
+      label: Does `Execute` already cover it?
+      description: >-
+        `Execute` runs any query against the same transport, and `SceneFields`
+        drops the standard selection set into it. Wrapping something is worth
+        doing when the shape is fiddly or easy to get wrong — say so if that's
+        the case here.

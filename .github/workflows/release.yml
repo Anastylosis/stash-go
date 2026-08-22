@@ -19,6 +19,9 @@ jobs:
   release:
     uses: Anastylosis/.github/.github/workflows/go-release.yml@v1
     permissions:
+      # contents: write to publish the release and discussions: write to open
+      # its announcement thread; the rest are for attest-build-provenance,
+      # which the shared workflow declares even with artifacts off.
       contents: write
       discussions: write
       id-token: write
@@ -27,6 +30,16 @@ jobs:
     with:
       binary-name: stash-go
       artifacts: false
+      # No manual-smoke-gate, deliberately, though the sibling repos have
+      # one. Theirs bridges a real gap: CI cannot run fss's scraper smoke
+      # tests or drive a live Stash, so a human attests to what the runner
+      # could not check. Nothing here is in that position — the unit suite is
+      # hermetic and complete, and the optional live suite is read-only. A
+      # gate with nothing to attest is a click, not a check.
+      #
+      # The category must already exist; renaming it on GitHub without
+      # changing it here fails the API call mid-release.
+      discussion-category: Announcements
       install-instructions: |
         ```sh
         go get github.com/Anastylosis/stash-go@${{ github.ref_name }}
