@@ -585,6 +585,142 @@ are about to write means a field you do not use cannot break you.
 Custom JavaScript runs in every browser that opens that Stash. Read it before
 writing it, and keep what is there.
 
+## Administering the server
+
+### What state is it in
+
+`Ping` succeeds against a server that is showing its setup wizard or refusing
+to open a database it is too new for — answering "I am not ready" is a
+successful answer. `SystemStatus` is how the two are told apart:
+
+```go
+st, err := c.SystemStatus(ctx)
+if !st.Ready() {
+    // st.Status is SystemSetup or SystemNeedsMigration
+}
+```
+
+`AppSchema` being ahead of `DatabaseSchema` *is* the `NEEDS_MIGRATION`
+condition. `DatabaseSchema` is nil on a server with no database yet, which is
+what `SETUP` means — nil rather than zero, because zero is a real schema
+version.
+
+The struct carries the fields every supported server has. Stash has added
+others since — the operating system, the working and home directories, the
+resolved ffmpeg and ffprobe paths — and naming one here would fail the whole
+query against a server without it. `Execute` reaches those.
+
+`ServerVersion` is `Version` with the build hash and time attached; a binary
+built from source outside a release has an empty version and a hash that
+identifies it. `LatestVersion` asks the *server* to fetch the newest release
+from GitHub, so it fails when the server has no route out — which is not the
+same thing as this program having none.
+
+### Logs
+
+```go
+entries, err := c.Logs(ctx)   // newest first
+```
+
+This is not the log file. Stash keeps a bounded in-memory ring of the last few
+hundred entries and serves that, so a server restarted since the event has
+nothing to say about it and a busy one has already dropped it. For anything
+that must not be missed, read the file `logFile` names. There is no way to
+follow the log from here: new entries arrive over a GraphQL subscription,
+which is a websocket this package does not open.
+
+### General settings
+
+The same read-what-you-name shape as the interface settings, for the section
+behind Settings > System:
+
+```go
+cfg, err := c.GeneralConfig(ctx, "databasePath", "blobsPath", "logFile")
+err = c.ConfigureGeneral(ctx, map[string]any{"logLevel": "Debug"})
+```
+
+Two things here bite harder than they do elsewhere. A **list-valued field is
+replaced, not extended** — sending one entry of `stashes` makes it the only
+library path Stash has, and `SetStashBoxes` exists because the same trap costs
+API keys. And several of these fields are how the server reaches its own data:
+point `databasePath` or `generatedPath` somewhere new and Stash starts afresh
+there rather than moving anything.
+
+`StashBoxConfigs` is the way to read `stashBoxes`; it is the one field in the
+section that carries credentials.
+
+### The API key
+
+```go
+key, err := c.GenerateAPIKey(ctx)
+c = stash.NewClient(url, stash.WithAPIKey(key))
+```
+
+There is one key per Stash, so generating a new one invalidates the old — the
+one this client is authenticating with included, which stops working the
+moment the mutation returns. The new key does not apply itself. `ClearAPIKey`
+removes it without issuing another.
+
+The returned key is a credential in a variable, and nothing redacts it for
+you: the scrubbing applies to the key a client was *built* with, not to one it
+has just been handed.
+
+### Migrations and maintenance
+
+`Migrate` is the one a `NEEDS_MIGRATION` server is waiting for. It is
+irreversible — a migrated database cannot be opened by the Stash that wrote it
+— which is what `backupPath` is for, and it runs synchronously rather than as
+a job, so the default 30s HTTP timeout gives up long before a large library
+finishes while the server carries on regardless.
+
+```go
+c := stash.NewClient(url, stash.WithAPIKey(key), stash.WithHTTPClient(&http.Client{}))
+err := c.Migrate(ctx, `/root/.stash/pre-migration.sqlite`)
+```
+
+The rest are background jobs, returning an id for `FindJob`:
+
+| call | what it is for |
+|---|---|
+| `MigrateBlobs` | move blob data between the database and the filesystem after `blobsPath` changes |
+| `MigrateHashNaming` | rename generated files from MD5 to oshash naming |
+| `MigrateSceneScreenshots` | read an old Stash's loose screenshot files in as scene covers |
+| `DownloadFFMpeg` | have the server fetch its own ffmpeg and ffprobe |
+| `OptimiseDatabase` | vacuum and reindex |
+
+`MigrateBlobs` takes `deleteOld`. Leaving it false writes the data to its new
+home without removing it from the old one, which is the undoable way round.
+
+`AnonymiseDatabase` writes a copy with every name, path, URL and free-text
+field stripped — the thing a bug report attaches. It keeps the shape of a
+library and none of what it is a library of, and it is a copy: nothing about
+the live database changes. `DownloadAnonymisedDatabase` streams it here
+instead of leaving it on the server, with the same transfer caveats as
+`DownloadBackup`.
+
+### DLNA
+
+```go
+st, err := c.DLNAStatus(ctx)
+err = c.EnableDLNA(ctx, 2*time.Hour)          // 0 means until disabled
+err = c.AllowDLNAIP(ctx, "192.168.1.20", 0)   // 0 means until the server restarts
+```
+
+None of this touches the configuration: a temporary enable is forgotten on
+restart, when `dlnaEnabled` decides again, and the grants sit on top of the
+configured whitelist rather than joining it. `DisallowDLNAIP` revokes one it
+made; it can say nothing about a configured address.
+
+`Status.Until` reads in whichever direction `Running` points — while running
+it is when the service stops, while stopped it is when it starts.
+
+Stash counts durations in whole minutes, and an *absent* duration means "no
+expiry". A duration under a minute is therefore refused rather than truncated
+to zero, which would silently mean forever.
+
+`RecentIPAddresses` is where the address for `AllowDLNAIP` comes from: a
+device that has just tried and been refused is identified by having tried.
+
 ## Performers, and where their details come from
 
 `EnsurePerformer` takes a name. `CreatePerformerFrom` takes everything Stash

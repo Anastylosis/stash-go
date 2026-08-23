@@ -43,9 +43,11 @@ scenes, err := c.FindAllScenes(ctx, stash.SceneFilter{StudioName: "Example"}, ni
 Scenes, performers, studios and tags; the files and fingerprints behind a
 scene; the merge, delete and move calls behind deduplication; saved filters;
 plugins and the package manager; the metadata tasks and the jobs they run;
-database backup; and submitting to a stash-box.
+database backup; submitting to a stash-box; and administering the server
+itself — status, logs, general and interface settings, the API key, the
+database migrations and DLNA.
 
-That is **26 of Stash's 62 queries and 44 of its 125 mutations**. The rest is
+That is **29 of Stash's 62 queries and 55 of its 125 mutations**. The rest is
 mostly galleries, images, groups and markers — whole object types this has
 never needed, and writing them untested would be worse than leaving them out.
 `Execute` reaches anything not wrapped, using the same transport, auth and
@@ -169,10 +171,12 @@ STASH_URL=http://your-server:9999 STASH_API_KEY=… go test -tags integration ./
 Without a reachable server the whole suite skips.
 
 The calls that write are therefore **not** exercised live — scans, generates,
-backups, package installs and the entity mutations are pinned by unit tests
-and checked against the server's own schema introspection instead. A scan is
-an hours-long mutation against somebody's real library; a test should not
-start one.
+backups, package installs, the entity mutations, and the administration calls
+that migrate, anonymise or replace the API key are pinned by unit tests, and
+the live suite checks the shapes they send against the server's own schema
+instead. A scan is an hours-long mutation against somebody's real library; a
+test should not start one, and nothing should replace a running server's
+credential to prove it can.
 
 ## Status
 
