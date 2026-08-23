@@ -119,3 +119,63 @@ func TestMeasureIgnoresJunk(t *testing.T) {
 		}
 	}
 }
+
+func TestScrapeScenesDecodes(t *testing.T) {
+	cap := &capture{}
+	srv := httptest.NewServer(cap.handler(`{"data":{"scrapeSingleScene":[{
+		"title":"A Scene","code":"CODE1","date":"2010-07-21","duration":1479,
+		"remote_site_id":"abc-123",
+		"studio":{"name":"A Studio","stored_id":"3"},
+		"performers":[{"name":"Someone","stored_id":"5"}],
+		"tags":[{"name":"a tag"}]}]}}`))
+	defer srv.Close()
+
+	got, err := NewClient(srv.URL).ScrapeScenes(context.Background(), "https://example.test/graphql", "CODE1")
+	if err != nil {
+		t.Fatalf("ScrapeScenes: %v", err)
+	}
+	if len(got) != 1 || got[0].Duration != 1479 || got[0].Studio == nil || got[0].Studio.StoredID != "3" {
+		t.Fatalf("scraped = %+v", got)
+	}
+	// stored_id is what says the box's performer is already in the library,
+	// and is the difference between finding one and creating a second.
+	if len(got[0].Performers) != 1 || got[0].Performers[0].StoredID != "5" {
+		t.Errorf("performers = %+v", got[0].Performers)
+	}
+	b, _ := json.Marshal(cap.reqs[0].Variables["input"])
+	if !strings.Contains(string(b), `"query"`) {
+		t.Errorf("input = %s", b)
+	}
+}
+
+// Matching on the file's fingerprints rather than on text, which is a
+// different input field and the difference between exact and fuzzy.
+func TestScrapeSceneByIDSendsTheSceneID(t *testing.T) {
+	cap := &capture{}
+	srv := httptest.NewServer(cap.handler(`{"data":{"scrapeSingleScene":[]}}`))
+	defer srv.Close()
+
+	got, err := NewClient(srv.URL).ScrapeSceneByID(context.Background(), "https://example.test/graphql", "36")
+	if err != nil {
+		t.Fatalf("ScrapeSceneByID: %v", err)
+	}
+	// An empty result is the ordinary answer for a library the box does not
+	// cover, not a failure.
+	if len(got) != 0 {
+		t.Errorf("scraped = %+v", got)
+	}
+	b, _ := json.Marshal(cap.reqs[0].Variables["input"])
+	if !strings.Contains(string(b), `"scene_id":"36"`) {
+		t.Errorf("input = %s", b)
+	}
+}
+
+func TestScrapeSceneCallsNeedBothArguments(t *testing.T) {
+	_, c := server(t, reply(`{"data":{}}`))
+	if _, err := c.ScrapeScenes(context.Background(), "", "x"); err == nil {
+		t.Error("want an error without an endpoint")
+	}
+	if _, err := c.ScrapeSceneByID(context.Background(), "https://example.test/graphql", ""); err == nil {
+		t.Error("want an error without a scene id")
+	}
+}

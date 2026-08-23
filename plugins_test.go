@@ -96,3 +96,23 @@ func TestConfigureInterfaceSendsOnlyWhatItWasGiven(t *testing.T) {
 		t.Errorf("input = %s, want only the key given", b)
 	}
 }
+
+func TestReloadPlugins(t *testing.T) {
+	cap := &capture{}
+	srv := httptest.NewServer(cap.handler(`{"data":{"reloadPlugins":true}}`))
+	defer srv.Close()
+
+	if err := NewClient(srv.URL).ReloadPlugins(context.Background()); err != nil {
+		t.Fatalf("ReloadPlugins: %v", err)
+	}
+	if !strings.Contains(cap.reqs[0].Query, "reloadPlugins") {
+		t.Errorf("query = %s", cap.reqs[0].Query)
+	}
+}
+
+func TestReloadPluginsReportsFailure(t *testing.T) {
+	_, c := server(t, reply(`{"errors":[{"message":"nope"}]}`))
+	if err := c.ReloadPlugins(context.Background()); err == nil {
+		t.Error("want the server's error")
+	}
+}

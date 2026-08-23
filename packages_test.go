@@ -155,3 +155,26 @@ func TestPackageSourcesQueriesThePerTypeField(t *testing.T) {
 		}
 	}
 }
+
+func TestInstalledPackagesDecodes(t *testing.T) {
+	_, c := server(t, reply(`{"data":{"installedPackages":[
+		{"package_id":"example-plugin","name":"Example Plugin","version":"1.2.3-abcdef0",
+		 "sourceURL":"https://example.test/index.yml"}]}}`))
+
+	got, err := c.InstalledPackages(context.Background(), PackagePlugin)
+	if err != nil {
+		t.Fatalf("InstalledPackages: %v", err)
+	}
+	if len(got) != 1 || got[0].ID != "example-plugin" || got[0].Version != "1.2.3-abcdef0" {
+		t.Errorf("packages = %+v", got)
+	}
+}
+
+// A server four releases too old answers the read calls the same way as the
+// mutations, and should be recognised the same way.
+func TestInstalledPackagesOnAnOldServer(t *testing.T) {
+	_, c := server(t, reply(`{"errors":[{"message":"Cannot query field \"installedPackages\" on type \"Query\"."}]}`))
+	if _, err := c.InstalledPackages(context.Background(), PackagePlugin); !errors.Is(err, ErrNoPackageManager) {
+		t.Errorf("err = %v, want ErrNoPackageManager", err)
+	}
+}

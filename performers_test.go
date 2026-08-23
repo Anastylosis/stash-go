@@ -325,3 +325,54 @@ func TestPerformerCareerYearsDecodeAsStrings(t *testing.T) {
 		t.Errorf("career = %q..%q", p.CareerStart, p.CareerEnd)
 	}
 }
+
+func TestFindPerformersDecodesAndCounts(t *testing.T) {
+	cap := &capture{}
+	srv := httptest.NewServer(cap.handler(`{"data":{"findPerformers":{"count":42,"performers":[
+		{"id":"1","name":"Example","scene_count":7}]}}}`))
+	defer srv.Close()
+
+	yes := true
+	got, count, err := NewClient(srv.URL).FindPerformers(context.Background(),
+		PerformerFilter{Gender: "FEMALE", HasStashID: &yes}, 1, 10)
+	if err != nil {
+		t.Fatalf("FindPerformers: %v", err)
+	}
+	if count != 42 || len(got) != 1 || got[0].SceneCount != 7 {
+		t.Errorf("got %d of %d: %+v", len(got), count, got)
+	}
+	b, _ := json.Marshal(cap.reqs[0].Variables["performer_filter"])
+	if !strings.Contains(string(b), "FEMALE") || !strings.Contains(string(b), "NOT_NULL") {
+		t.Errorf("filter = %s", b)
+	}
+}
+
+func TestDeletePerformer(t *testing.T) {
+	cap := &capture{}
+	srv := httptest.NewServer(cap.handler(`{"data":{"performerDestroy":true}}`))
+	defer srv.Close()
+	c := NewClient(srv.URL)
+
+	if err := c.DeletePerformer(context.Background(), "9"); err != nil {
+		t.Fatalf("DeletePerformer: %v", err)
+	}
+	if got := cap.reqs[0].Variables["id"]; got != "9" {
+		t.Errorf("id = %v", got)
+	}
+	if err := c.DeletePerformer(context.Background(), ""); err == nil {
+		t.Error("want an error without an id")
+	}
+}
+
+// All or nothing, so the error has to reach the caller rather than being
+// mistaken for a partial success.
+func TestDeletePerformersReportsAMissingID(t *testing.T) {
+	_, c := server(t, reply(`{"errors":[{"message":"id 999 does not exist in performers"}]}`))
+	err := c.DeletePerformers(context.Background(), "1", "999")
+	if err == nil || !strings.Contains(err.Error(), "does not exist") {
+		t.Errorf("err = %v", err)
+	}
+	if err := c.DeletePerformers(context.Background(), "1", ""); err == nil {
+		t.Error("want an error for an empty id in the list")
+	}
+}

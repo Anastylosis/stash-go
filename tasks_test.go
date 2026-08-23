@@ -339,3 +339,23 @@ func TestOptimiseDatabaseReturnsAJobID(t *testing.T) {
 		t.Errorf("got (%q, %v)", id, err)
 	}
 }
+
+func TestStopAllJobs(t *testing.T) {
+	cap := &capture{}
+	srv := httptest.NewServer(cap.handler(`{"data":{"stopAllJobs":true}}`))
+	defer srv.Close()
+
+	if err := NewClient(srv.URL).StopAllJobs(context.Background()); err != nil {
+		t.Fatalf("StopAllJobs: %v", err)
+	}
+	if !strings.Contains(cap.reqs[0].Query, "stopAllJobs") {
+		t.Errorf("query = %s", cap.reqs[0].Query)
+	}
+}
+
+func TestStopAllJobsReportsFailure(t *testing.T) {
+	_, c := server(t, reply(`{"errors":[{"message":"nope"}]}`))
+	if err := c.StopAllJobs(context.Background()); err == nil {
+		t.Error("want the server's error")
+	}
+}

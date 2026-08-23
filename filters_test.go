@@ -238,3 +238,16 @@ func TestDestroySavedFilterNeedsAnID(t *testing.T) {
 		t.Error("want an error without an id")
 	}
 }
+
+func TestDestroySavedFilter(t *testing.T) {
+	cap := &capture{}
+	srv := httptest.NewServer(cap.handler(`{"data":{"destroySavedFilter":true}}`))
+	defer srv.Close()
+
+	if err := NewClient(srv.URL).DestroySavedFilter(context.Background(), "8"); err != nil {
+		t.Fatalf("DestroySavedFilter: %v", err)
+	}
+	if got := cap.reqs[0].Variables["id"]; got != "8" {
+		t.Errorf("id = %v", got)
+	}
+}

@@ -105,3 +105,81 @@ func TestDeleteTagsWithNothingToDo(t *testing.T) {
 		t.Errorf("sent %d requests, want none", len(cap.reqs))
 	}
 }
+
+func TestTagsPagesAndCounts(t *testing.T) {
+	_, c := server(t, reply(`{"data":{"findTags":{"count":212,"tags":[
+		{"id":"5","name":"date_from_scene","scene_count":2070}]}}}`))
+	got, count, err := c.Tags(context.Background(), 1, 10)
+	if err != nil {
+		t.Fatalf("Tags: %v", err)
+	}
+	if count != 212 || len(got) != 1 || got[0].SceneCount != 2070 {
+		t.Errorf("got %d of %d: %+v", len(got), count, got)
+	}
+}
+
+func TestCreateTagFromSendsEverythingGiven(t *testing.T) {
+	cap := &capture{}
+	srv := httptest.NewServer(cap.handler(`{"data":{"tagCreate":{"id":"5"}}}`))
+	defer srv.Close()
+
+	id, err := NewClient(srv.URL).CreateTagFrom(context.Background(), TagInput{
+		ID: "leftover", Name: "a tag", Description: "what it means",
+		Aliases: []string{"an alias"}, ParentIDs: []string{"1"},
+	})
+	if err != nil {
+		t.Fatalf("CreateTagFrom: %v", err)
+	}
+	if id != "5" {
+		t.Errorf("id = %q", id)
+	}
+	b, _ := json.Marshal(cap.reqs[0].Variables["input"])
+	// A create must not carry an id, even when the caller reused a struct.
+	if strings.Contains(string(b), "leftover") {
+		t.Errorf("input = %s, want no id on a create", b)
+	}
+	if !strings.Contains(string(b), "an alias") || !strings.Contains(string(b), `"parent_ids"`) {
+		t.Errorf("input = %s", b)
+	}
+}
+
+func TestCreateTagFromNeedsAName(t *testing.T) {
+	_, c := server(t, reply(`{"data":{}}`))
+	if _, err := c.CreateTagFrom(context.Background(), TagInput{}); err == nil {
+		t.Error("want an error without a name")
+	}
+	if err := c.UpdateTag(context.Background(), TagInput{Name: "x"}); err == nil {
+		t.Error("want an error updating without an id")
+	}
+}
+
+func TestDeleteTag(t *testing.T) {
+	cap := &capture{}
+	srv := httptest.NewServer(cap.handler(`{"data":{"tagDestroy":true}}`))
+	defer srv.Close()
+	c := NewClient(srv.URL)
+
+	if err := c.DeleteTag(context.Background(), "5"); err != nil {
+		t.Fatalf("DeleteTag: %v", err)
+	}
+	if got := cap.reqs[0].Variables["id"]; got != "5" {
+		t.Errorf("id = %v", got)
+	}
+	if err := c.DeleteTag(context.Background(), ""); err == nil {
+		t.Error("want an error without an id")
+	}
+}
+
+func TestDeleteTagsSendsTheList(t *testing.T) {
+	cap := &capture{}
+	srv := httptest.NewServer(cap.handler(`{"data":{"tagsDestroy":true}}`))
+	defer srv.Close()
+
+	if err := NewClient(srv.URL).DeleteTags(context.Background(), "5", "6"); err != nil {
+		t.Fatalf("DeleteTags: %v", err)
+	}
+	b, _ := json.Marshal(cap.reqs[0].Variables["ids"])
+	if string(b) != `["5","6"]` {
+		t.Errorf("ids = %s", b)
+	}
+}

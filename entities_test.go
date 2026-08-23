@@ -2,6 +2,7 @@ package stash
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -121,5 +122,23 @@ func TestEnsureDoesNotCreateWhenPresent(t *testing.T) {
 	}
 	if id != "5" {
 		t.Errorf("id = %q, want 5", id)
+	}
+}
+
+func TestCreateTagReturnsItsID(t *testing.T) {
+	cap := &capture{}
+	srv := httptest.NewServer(cap.handler(`{"data":{"tagCreate":{"id":"11"}}}`))
+	defer srv.Close()
+
+	id, err := NewClient(srv.URL).CreateTag(context.Background(), "a new tag")
+	if err != nil {
+		t.Fatalf("CreateTag: %v", err)
+	}
+	if id != "11" {
+		t.Errorf("id = %q", id)
+	}
+	b, _ := json.Marshal(cap.reqs[0].Variables)
+	if !strings.Contains(string(b), "a new tag") {
+		t.Errorf("variables = %s", b)
 	}
 }
