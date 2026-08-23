@@ -329,3 +329,33 @@ func (c *Client) UpdateScene(ctx context.Context, update SceneUpdate) error {
 	}
 	return nil
 }
+
+// SetSceneStashIDs replaces a scene's stash-box ids, and can clear them.
+//
+// [SceneUpdate] cannot. Its fields are omitted when empty so that an unset
+// one leaves the stored value alone, which is what makes partial updates
+// safe — and it means an empty StashIDs slice is indistinguishable from "do
+// not touch the stash ids". Removing the last one therefore needs a call that
+// always sends the field.
+//
+// Passing nil clears them.
+func (c *Client) SetSceneStashIDs(ctx context.Context, sceneID string, ids []StashID) error {
+	if sceneID == "" {
+		return fmt.Errorf("stash: setting stash ids: no scene id")
+	}
+	list := make([]map[string]string, 0, len(ids))
+	for _, id := range ids {
+		list = append(list, map[string]string{"endpoint": id.Endpoint, "stash_id": id.ID})
+	}
+	_, err := c.do(ctx, graphqlRequest{
+		Query: `mutation($input: SceneUpdateInput!) { sceneUpdate(input: $input) { id } }`,
+		Variables: map[string]any{"input": map[string]any{
+			"id":        sceneID,
+			"stash_ids": list,
+		}},
+	})
+	if err != nil {
+		return fmt.Errorf("stash: setting stash ids on scene %s: %w", sceneID, err)
+	}
+	return nil
+}

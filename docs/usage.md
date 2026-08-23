@@ -286,6 +286,17 @@ Stash's bulk update takes an ADD mode instead, applied to every scene named in
 one request. `RemoveSceneTags` is the same the other way; removing a tag a
 scene does not have is not an error.
 
+### Clearing a list
+
+`SceneUpdate` omits empty fields, which is what makes a partial update safe —
+an unset field leaves the stored value alone. The cost is that it cannot clear
+a list: an empty `StashIDs` is indistinguishable from "do not touch the stash
+ids", so removing the last one silently does nothing.
+
+```go
+err := c.SetSceneStashIDs(ctx, sceneID, nil)   // actually clears them
+```
+
 ## Media the API will not hand over
 
 A scene carries URLs to things GraphQL does not return as data — the sprite

@@ -392,3 +392,43 @@ func TestSceneFilterRefusesBothTagDirections(t *testing.T) {
 		t.Fatal("want an error when both tag filters are set")
 	}
 }
+
+// SceneUpdate omits empty fields so that an unset one leaves the stored value
+// alone — which means it cannot clear a list at all. Removing the last stash
+// id silently did nothing until this existed.
+func TestSetSceneStashIDsSendsAnEmptyList(t *testing.T) {
+	cap := &capture{}
+	srv := httptest.NewServer(cap.handler(`{"data":{"sceneUpdate":{"id":"1"}}}`))
+	defer srv.Close()
+
+	if err := NewClient(srv.URL).SetSceneStashIDs(context.Background(), "1", nil); err != nil {
+		t.Fatalf("SetSceneStashIDs: %v", err)
+	}
+	b, _ := json.Marshal(cap.reqs[0].Variables["input"])
+	if !strings.Contains(string(b), `"stash_ids":[]`) {
+		t.Errorf("input = %s, want an explicit empty list", b)
+	}
+}
+
+func TestSetSceneStashIDsKeepsTheOthers(t *testing.T) {
+	cap := &capture{}
+	srv := httptest.NewServer(cap.handler(`{"data":{"sceneUpdate":{"id":"1"}}}`))
+	defer srv.Close()
+
+	err := NewClient(srv.URL).SetSceneStashIDs(context.Background(), "1",
+		[]StashID{{Endpoint: "https://other.test/graphql", ID: "keep-me"}})
+	if err != nil {
+		t.Fatalf("SetSceneStashIDs: %v", err)
+	}
+	b, _ := json.Marshal(cap.reqs[0].Variables["input"])
+	if !strings.Contains(string(b), "keep-me") {
+		t.Errorf("input = %s", b)
+	}
+}
+
+func TestSetSceneStashIDsNeedsASceneID(t *testing.T) {
+	_, c := server(t, reply(`{"data":{}}`))
+	if err := c.SetSceneStashIDs(context.Background(), "", nil); err == nil {
+		t.Error("want an error without a scene id")
+	}
+}
