@@ -211,6 +211,16 @@ func everyCall() []call {
 			return err
 		}},
 		{name: "DestroySavedFilter", run: func(ctx context.Context, c *Client) error { return c.DestroySavedFilter(ctx, "1") }},
+		{name: "SystemStatus", run: func(ctx context.Context, c *Client) error { _, err := c.SystemStatus(ctx); return err }},
+		{name: "ServerVersion", run: func(ctx context.Context, c *Client) error { _, err := c.ServerVersion(ctx); return err }},
+		{name: "LatestVersion", run: func(ctx context.Context, c *Client) error { _, _, err := c.LatestVersion(ctx); return err }},
+		{name: "Logs", run: func(ctx context.Context, c *Client) error { _, err := c.Logs(ctx); return err }},
+		{name: "GeneralConfig", run: func(ctx context.Context, c *Client) error { _, err := c.GeneralConfig(ctx, "databasePath"); return err }},
+		{name: "ConfigureGeneral", run: func(ctx context.Context, c *Client) error {
+			return c.ConfigureGeneral(ctx, map[string]any{"logLevel": "Info"})
+		}},
+		{name: "GenerateAPIKey", run: func(ctx context.Context, c *Client) error { _, err := c.GenerateAPIKey(ctx); return err }},
+		{name: "ClearAPIKey", run: func(ctx context.Context, c *Client) error { return c.ClearAPIKey(ctx) }},
 		{name: "Migrate", run: func(ctx context.Context, c *Client) error { return c.Migrate(ctx, "") }},
 		{name: "MigrateBlobs", run: func(ctx context.Context, c *Client) error { _, err := c.MigrateBlobs(ctx, false); return err }},
 		{name: "MigrateHashNaming", run: func(ctx context.Context, c *Client) error { _, err := c.MigrateHashNaming(ctx); return err }},

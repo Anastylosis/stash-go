@@ -449,3 +449,74 @@ func TestLiveFindScenesByPathRegex(t *testing.T) {
 		t.Errorf("total = %d for an impossible pattern", total)
 	}
 }
+
+// The administration queries are read-only and answer on any server that is
+// up. Nothing here migrates, anonymises, rewrites a setting or touches the
+// API key: each of those changes the server for everyone using it, and two
+// of them cannot be undone.
+func TestLiveSystemStatus(t *testing.T) {
+	c := client(t)
+	got, err := c.SystemStatus(context.Background())
+	if err != nil {
+		t.Fatalf("SystemStatus: %v", err)
+	}
+	// Ping already succeeded, so a server in any other state would mean
+	// Ready is reading the wrong thing.
+	if !got.Ready() {
+		t.Fatalf("status = %q against a server answering queries", got.Status)
+	}
+	if got.DatabaseSchema == nil {
+		t.Error("databaseSchema is null on a server that is OK")
+	} else {
+		t.Logf("database schema %d, binary expects %d, config at %s",
+			*got.DatabaseSchema, got.AppSchema, got.ConfigPath)
+	}
+}
+
+func TestLiveServerVersion(t *testing.T) {
+	got, err := client(t).ServerVersion(context.Background())
+	if err != nil {
+		t.Fatalf("ServerVersion: %v", err)
+	}
+	// The tag is empty on a build from source; the hash never is.
+	if got.Hash == "" {
+		t.Error("no build hash")
+	}
+	t.Logf("version %q hash %s built %s", got.Version, got.Hash, got.BuildTime)
+}
+
+// A server that has just answered a query has logged something, but a quiet
+// one with a small ring is entitled to hand back nothing — only the error
+// matters here.
+func TestLiveLogs(t *testing.T) {
+	entries, err := client(t).Logs(context.Background())
+	if err != nil {
+		t.Fatalf("Logs: %v", err)
+	}
+	if len(entries) > 0 {
+		t.Logf("%d entries, newest %s %s", len(entries), entries[0].Level, entries[0].Time)
+	}
+}
+
+func TestLiveGeneralConfig(t *testing.T) {
+	c := client(t)
+	ctx := context.Background()
+
+	got, err := c.GeneralConfig(ctx, "databasePath", "logLevel")
+	if err != nil {
+		t.Fatalf("GeneralConfig: %v", err)
+	}
+	// Asking for two fields must return those two: a section decoded into a
+	// map is where a renamed field goes missing silently.
+	for _, field := range []string{"databasePath", "logLevel"} {
+		if _, present := got[field]; !present {
+			t.Errorf("%s absent from %v", field, got)
+		}
+	}
+
+	// The guard is what keeps anything but a field name out of the query,
+	// and it has to hold against the real parser too.
+	if _, err := c.GeneralConfig(ctx, "databasePath } } configuration { general { logLevel"); err == nil {
+		t.Error("GeneralConfig accepted something that is not a field name")
+	}
+}
