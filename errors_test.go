@@ -211,6 +211,19 @@ func everyCall() []call {
 			return err
 		}},
 		{name: "DestroySavedFilter", run: func(ctx context.Context, c *Client) error { return c.DestroySavedFilter(ctx, "1") }},
+		{name: "Migrate", run: func(ctx context.Context, c *Client) error { return c.Migrate(ctx, "") }},
+		{name: "MigrateBlobs", run: func(ctx context.Context, c *Client) error { _, err := c.MigrateBlobs(ctx, false); return err }},
+		{name: "MigrateHashNaming", run: func(ctx context.Context, c *Client) error { _, err := c.MigrateHashNaming(ctx); return err }},
+		{name: "MigrateSceneScreenshots", run: func(ctx context.Context, c *Client) error {
+			_, err := c.MigrateSceneScreenshots(ctx, ScreenshotMigration{})
+			return err
+		}},
+		{name: "AnonymiseDatabase", run: func(ctx context.Context, c *Client) error { _, err := c.AnonymiseDatabase(ctx); return err }},
+		{name: "DownloadAnonymisedDatabase", run: func(ctx context.Context, c *Client) error {
+			_, _, err := c.DownloadAnonymisedDatabase(ctx, io.Discard)
+			return err
+		}},
+		{name: "DownloadFFMpeg", run: func(ctx context.Context, c *Client) error { _, err := c.DownloadFFMpeg(ctx); return err }},
 	}
 }
 

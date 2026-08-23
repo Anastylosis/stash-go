@@ -355,17 +355,11 @@ func (c *Client) StopAllJobs(ctx context.Context) error {
 
 // OptimiseDatabase starts a database optimisation job and returns its id.
 func (c *Client) OptimiseDatabase(ctx context.Context) (jobID string, err error) {
-	data, err := c.do(ctx, graphqlRequest{Query: `mutation { optimiseDatabase }`})
+	id, err := c.simpleJob(ctx, "optimiseDatabase")
 	if err != nil {
 		return "", fmt.Errorf("stash: optimising the database: %w", err)
 	}
-	var result struct {
-		OptimiseDatabase string `json:"optimiseDatabase"`
-	}
-	if err := json.Unmarshal(data, &result); err != nil {
-		return "", fmt.Errorf("stash: decoding job id: %w", err)
-	}
-	return result.OptimiseDatabase, nil
+	return id, nil
 }
 
 // startJob runs one of the metadata mutations and returns the job id they all

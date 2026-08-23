@@ -13,8 +13,8 @@ import (
 	"time"
 )
 
-// backupInput decodes the BackupDatabaseInput a call put on the wire.
-func backupInput(t *testing.T, req graphqlRequest) map[string]any {
+// sentInput decodes the `input` variable a call put on the wire.
+func sentInput(t *testing.T, req graphqlRequest) map[string]any {
 	t.Helper()
 	b, err := json.Marshal(req.Variables["input"])
 	if err != nil {
@@ -39,7 +39,7 @@ func backupServer(t *testing.T, payload string) (*httptest.Server, *Client, *cap
 		_ = json.NewDecoder(r.Body).Decode(&req)
 		cap.reqs = append(cap.reqs, req)
 		body := `{"data":{"backupDatabase":"C:\\Users\\me\\.stash\\local.sqlite.85.20260101_000000"}}`
-		if in := backupInput(t, req); in["download"] == true {
+		if in := sentInput(t, req); in["download"] == true {
 			body = `{"data":{"backupDatabase":"` + base + `/downloads/abc123/local.sqlite.85.20260101_000000"}}`
 		}
 		_, _ = io.WriteString(w, body)
@@ -64,7 +64,7 @@ func TestBackupDatabaseReturnsServerPath(t *testing.T) {
 	if want := `C:\Users\me\.stash\local.sqlite.85.20260101_000000`; path != want {
 		t.Errorf("path = %q, want %q", path, want)
 	}
-	if got := backupInput(t, cap.reqs[0])["download"]; got != false {
+	if got := sentInput(t, cap.reqs[0])["download"]; got != false {
 		t.Errorf("download = %v, want false", got)
 	}
 }
@@ -89,7 +89,7 @@ func TestDownloadBackupStreamsToWriter(t *testing.T) {
 	if name != "local.sqlite.85.20260101_000000" {
 		t.Errorf("name = %q", name)
 	}
-	if got := backupInput(t, cap.reqs[0])["download"]; got != true {
+	if got := sentInput(t, cap.reqs[0])["download"]; got != true {
 		t.Errorf("download = %v, want true", got)
 	}
 }
@@ -100,7 +100,7 @@ func TestBackupPassesIncludeBlobs(t *testing.T) {
 		if _, err := c.BackupDatabase(context.Background(), BackupOptions{IncludeBlobs: want}); err != nil {
 			t.Fatalf("BackupDatabase: %v", err)
 		}
-		if got := backupInput(t, cap.reqs[0])["includeBlobs"]; got != want {
+		if got := sentInput(t, cap.reqs[0])["includeBlobs"]; got != want {
 			t.Errorf("includeBlobs = %v, want %v", got, want)
 		}
 	}

@@ -68,7 +68,13 @@ func (c *Client) DownloadBackup(ctx context.Context, opts BackupOptions, w io.Wr
 	if err != nil {
 		return "", 0, fmt.Errorf("stash: backing up database: %w", err)
 	}
+	return c.downloadServerFile(ctx, raw, w, "backup")
+}
 
+// downloadServerFile streams a file the server has just written and handed
+// back a URL for. Backups and anonymised copies are served the same way: a
+// temporary file, an HTTP route to it, and the same three ways to fail.
+func (c *Client) downloadServerFile(ctx context.Context, raw string, w io.Writer, what string) (name string, written int64, err error) {
 	loc, err := c.resolveServerURL(raw)
 	if err != nil {
 		return "", 0, err
@@ -77,13 +83,13 @@ func (c *Client) DownloadBackup(ctx context.Context, opts BackupOptions, w io.Wr
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, loc.String(), nil)
 	if err != nil {
-		return name, 0, fmt.Errorf("stash: building backup download request: %w", err)
+		return name, 0, fmt.Errorf("stash: building %s download request: %w", what, err)
 	}
 	c.authorize(req)
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return name, 0, fmt.Errorf("stash: downloading backup: %w", c.explainTimeout(ctx, c.redact(err)))
+		return name, 0, fmt.Errorf("stash: downloading %s: %w", what, c.explainTimeout(ctx, c.redact(err)))
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -98,7 +104,7 @@ func (c *Client) DownloadBackup(ctx context.Context, opts BackupOptions, w io.Wr
 
 	written, err = io.Copy(w, resp.Body)
 	if err != nil {
-		return name, written, fmt.Errorf("stash: downloading backup: %w", c.explainTimeout(ctx, c.redact(err)))
+		return name, written, fmt.Errorf("stash: downloading %s: %w", what, c.explainTimeout(ctx, c.redact(err)))
 	}
 	return name, written, nil
 }
@@ -150,7 +156,7 @@ func (c *Client) resolveServerURL(raw string) (*url.URL, error) {
 }
 
 // explainTimeout names the cause when the HTTP client's own timeout, rather
-// than the caller's context, is what killed a transfer. The two have opposite
+// than the caller's context, is what killed a call. The two have opposite
 // fixes and are otherwise hard to tell apart: net/http reports its own
 // timeout as a wrapped context.DeadlineExceeded too, so what separates them
 // is whether the caller's context is the one that expired.
@@ -160,7 +166,7 @@ func (c *Client) explainTimeout(ctx context.Context, err error) error {
 	}
 	var uerr *url.Error
 	if errors.As(err, &uerr) && uerr.Timeout() && c.http.Timeout > 0 {
-		return fmt.Errorf("%w (the HTTP client's %s timeout covers the whole transfer; pass one without a timeout via WithHTTPClient for backups)", err, c.http.Timeout)
+		return fmt.Errorf("%w (the HTTP client's %s timeout covers the whole call, not just the response headers; pass one without a timeout via WithHTTPClient and bound the run with ctx instead)", err, c.http.Timeout)
 	}
 	return err
 }
