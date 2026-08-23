@@ -4,6 +4,7 @@ package stash
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"testing"
 )
@@ -528,4 +529,81 @@ func TestLiveDLNAStatus(t *testing.T) {
 	}
 	t.Logf("DLNA running=%v, %d recent addresses, %d temporary grants",
 		got.Running, len(got.RecentIPAddresses), len(got.AllowedIPAddresses))
+}
+
+// The administration calls that write are not exercised live: they migrate,
+// anonymise, rewrite settings or replace the API key, and each of those
+// changes the server for everyone using it. What a live server can still
+// check is that the shapes they send exist — a field the schema lacks fails
+// the whole request, so this is the difference between a call that works and
+// one that fails the first time somebody means it.
+func TestLiveAdminSchemaShapes(t *testing.T) {
+	c := client(t)
+
+	for _, tc := range []struct {
+		typeName string
+		want     []string
+	}{
+		{"Query", []string{"systemStatus", "version", "latestversion", "logs", "dlnaStatus", "configuration"}},
+		{"Mutation", []string{
+			"configureGeneral", "generateAPIKey", "migrate", "migrateBlobs", "migrateHashNaming",
+			"migrateSceneScreenshots", "anonymiseDatabase", "downloadFFMpeg", "optimiseDatabase",
+			"enableDLNA", "disableDLNA", "addTempDLNAIP", "removeTempDLNAIP",
+		}},
+		{"SystemStatus", []string{"status", "databaseSchema", "appSchema", "databasePath", "configPath"}},
+		{"Version", []string{"version", "hash", "build_time"}},
+		{"LogEntry", []string{"time", "level", "message"}},
+		{"DLNAStatus", []string{"running", "until", "recentIPAddresses", "allowedIPAddresses"}},
+		{"DLNAIP", []string{"ipAddress", "until"}},
+		{"MigrateInput", []string{"backupPath"}},
+		{"MigrateBlobsInput", []string{"deleteOld"}},
+		{"MigrateSceneScreenshotsInput", []string{"deleteFiles", "overwriteExisting"}},
+		{"AnonymiseDatabaseInput", []string{"download"}},
+		{"GenerateAPIKeyInput", []string{"clear"}},
+		{"EnableDLNAInput", []string{"duration"}},
+		{"DisableDLNAInput", []string{"duration"}},
+		{"AddTempDLNAIPInput", []string{"address", "duration"}},
+		{"RemoveTempDLNAIPInput", []string{"address"}},
+	} {
+		t.Run(tc.typeName, func(t *testing.T) {
+			have, ok := typeFields(t, c, tc.typeName)
+			if !ok {
+				t.Fatalf("this server has no type %s", tc.typeName)
+			}
+			for _, field := range tc.want {
+				if !have[field] {
+					t.Errorf("%s has no field %q", tc.typeName, field)
+				}
+			}
+		})
+	}
+}
+
+// typeFields introspects one type's fields, whether it is an object type or
+// an input one — the two answer on different halves of __Type.
+func typeFields(t *testing.T, c *Client, name string) (map[string]bool, bool) {
+	t.Helper()
+	data, err := c.Execute(context.Background(),
+		`query($n: String!) { __type(name: $n) { fields { name } inputFields { name } } }`,
+		map[string]any{"n": name})
+	if err != nil {
+		t.Fatalf("introspecting %s: %v", name, err)
+	}
+	var result struct {
+		Type *struct {
+			Fields      []struct{ Name string } `json:"fields"`
+			InputFields []struct{ Name string } `json:"inputFields"`
+		} `json:"__type"`
+	}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("decoding introspection of %s: %v", name, err)
+	}
+	if result.Type == nil {
+		return nil, false
+	}
+	fields := map[string]bool{}
+	for _, f := range append(result.Type.Fields, result.Type.InputFields...) {
+		fields[f.Name] = true
+	}
+	return fields, true
 }
