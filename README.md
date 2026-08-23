@@ -46,6 +46,10 @@ scenes, err := c.FindAllScenes(ctx, stash.SceneFilter{StudioName: "Example"}, ni
 - **A database backup you can keep somewhere else.** `DownloadBackup` streams
   the server's backup to a writer of yours, rather than leaving it on the disk
   it is meant to insure against.
+- **Plugins, and the package manager that installs them.** `InstallPackages`
+  and friends, with the spec validation Stash lacks: it matches a package on
+  id *and* source, and a spec missing either runs a job that installs nothing
+  and reports success.
 - **Tasks and their jobs.** `MetadataScan` starts a scan — the only way to
   make Stash notice a file that appeared on disk — and `FindJob` follows it.
 - **An escape hatch.** `Execute` runs any query against the same transport, so
@@ -151,15 +155,16 @@ Without a reachable server the whole suite skips.
 
 Early. The surface covers scenes with their files and captions, the
 tag/performer/studio entities that metadata pushes need, plugin settings, the
-scan/job pair, and database backup. Operations for deduplication work —
-merging scenes, moving and deleting files — are next; `Execute` covers them
-meanwhile.
+scan/job pair, database backup, and the plugin and package surface. Operations
+for deduplication work — merging scenes, moving and deleting files — are next;
+`Execute` covers them meanwhile.
 
-`MetadataScan` and the two backup calls are what the live suite leaves alone,
-because it is read-only by contract and all three write something: a scan is
-an hours-long mutation against a real library, and a backup drops a copy of
-the database on the server's disk. Their request shapes are pinned by unit
-tests and checked against the server's own schema introspection.
+`MetadataScan`, the backup calls and the package mutations are what the live
+suite leaves alone, because it is read-only by contract and all of them write
+something: a scan is an hours-long mutation against a real library, a backup
+drops a copy of the database on the server's disk, and an install puts
+software in its plugin directory. Their request shapes are pinned by unit tests
+and checked against the server's own schema introspection.
 
 ## License
 

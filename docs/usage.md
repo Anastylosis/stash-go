@@ -225,6 +225,62 @@ Stash does not delete the temporary file it served the download from — it
 clears that directory on restart — so backing up on a schedule leaves copies
 on the server's temp volume.
 
+## Plugins and packages
+
+The package manager, which arrived in Stash 0.25, installs plugins and
+scrapers from an index. A package is identified by id *and* source, because
+two indexes may both offer an id:
+
+```go
+sources, err := c.PackageSources(ctx, stash.PackagePlugin)
+available, err := c.AvailablePackages(ctx, stash.PackagePlugin, sources[0].URL)
+
+job, err := c.InstallPackages(ctx, stash.PackagePlugin, pkg.Spec())
+```
+
+`AvailablePackages` makes the *server* fetch that index over the internet, so
+it is slower than it looks and fails when the server is offline rather than
+when you are.
+
+Install, update and uninstall are background jobs and return an id for
+[`FindJob`](#tasks). Two things they do not do:
+
+- **Resolve requirements.** A package whose `Requires` names something absent
+  installs anyway, and fails when it runs. Check the field.
+- **Reject a spec that matches nothing.** Stash matches on id and source
+  together, so a spec missing either runs a job that installs nothing and
+  reports success. `InstallPackages` refuses one rather than let that happen.
+
+Against a server older than 0.25 every call here returns `ErrNoPackageManager`
+wrapping the server's own message, rather than a bare "Cannot query field"
+that reads like a bug in this library.
+
+`Plugins` is the separate question of what the server has *loaded*: a plugin
+installed from a source appears in both lists, one dropped into the plugins
+directory by hand appears only in `Plugins`, and one whose files will not
+parse appears in neither.
+
+```go
+err := c.SetPluginsEnabled(ctx, map[string]bool{"example": true})
+```
+
+## Interface settings
+
+`ConfigureInterface` writes interface settings and leaves the rest alone, the
+same way `SceneUpdate` does. `InterfaceConfig` reads back the fields you name:
+
+```go
+current, err := c.InterfaceConfig(ctx, "javascript", "javascriptEnabled")
+err = c.ConfigureInterface(ctx, map[string]any{"javascriptEnabled": true})
+```
+
+The caller names the fields because the section is large and version-dependent,
+and one field the schema lacks fails the whole query — asking only for what you
+are about to write means a field you do not use cannot break you.
+
+Custom JavaScript runs in every browser that opens that Stash. Read it before
+writing it, and keep what is there.
+
 ## Older servers
 
 Stash 0.20 or newer is required: the shared selection set asks for the
