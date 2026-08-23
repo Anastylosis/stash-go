@@ -225,6 +225,23 @@ Stash does not delete the temporary file it served the download from — it
 clears that directory on restart — so backing up on a schedule leaves copies
 on the server's temp volume.
 
+## Media the API will not hand over
+
+A scene carries URLs to things GraphQL does not return as data — the sprite
+sheet, its WebVTT, the cover, the stream — and those routes want the same
+credential as `/graphql`.
+
+```go
+var sprite bytes.Buffer
+contentType, n, err := c.Fetch(ctx, scene.Paths.Sprite, &sprite)
+```
+
+`Fetch` applies the credential and re-roots the URL the way `DownloadBackup`
+does, so one the server built from a proxied request still resolves. Stash
+generates sprites, previews and covers lazily, so a missing one comes back as
+`ErrNotFound` rather than a status code to unwrap — that is an ordinary state
+of a scene, not a failure to stop for.
+
 ## Plugins and packages
 
 The package manager, which arrived in Stash 0.25, installs plugins and

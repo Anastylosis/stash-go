@@ -69,7 +69,7 @@ func (c *Client) DownloadBackup(ctx context.Context, opts BackupOptions, w io.Wr
 		return "", 0, fmt.Errorf("stash: backing up database: %w", err)
 	}
 
-	loc, err := c.resolveDownload(raw)
+	loc, err := c.resolveServerURL(raw)
 	if err != nil {
 		return "", 0, err
 	}
@@ -129,18 +129,18 @@ func (c *Client) backup(ctx context.Context, opts BackupOptions, download bool) 
 	return *result.BackupDatabase, nil
 }
 
-// resolveDownload re-roots the server's download URL on the address this
+// resolveServerURL re-roots a URL the server produced on the address this
 // client was built with.
 //
-// Stash builds that URL from the request it received, so it usually points
-// back where the request came from. Usually is not always: behind a proxy,
-// or with an external URL configured, it can name a host that answers for
-// browsers and not for this process. The path is the part that identifies
-// the backup; the route to the server is something the caller already knew.
-func (c *Client) resolveDownload(raw string) (*url.URL, error) {
+// Stash builds such URLs from the request it received, so they usually point
+// back where the request came from. Usually is not always: behind a proxy, or
+// with an external URL configured, one can name a host that answers for
+// browsers and not for this process. The path identifies the resource; the
+// route to the server is something the caller already knew.
+func (c *Client) resolveServerURL(raw string) (*url.URL, error) {
 	ref, err := url.Parse(raw)
 	if err != nil {
-		return nil, fmt.Errorf("stash: parsing backup download URL: %w", err)
+		return nil, fmt.Errorf("stash: parsing server URL %q: %w", raw, err)
 	}
 	base, err := url.Parse(c.baseURL)
 	if err != nil {

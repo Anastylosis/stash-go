@@ -46,6 +46,9 @@ scenes, err := c.FindAllScenes(ctx, stash.SceneFilter{StudioName: "Example"}, ni
 - **A database backup you can keep somewhere else.** `DownloadBackup` streams
   the server's backup to a writer of yours, rather than leaving it on the disk
   it is meant to insure against.
+- **The media routes, authenticated.** `Fetch` streams a scene's sprite sheet,
+  cover or stream — things GraphQL will not return as data — applying the same
+  credential, and telling a lazily-ungenerated one from a real failure.
 - **Plugins, and the package manager that installs them.** `InstallPackages`
   and friends, with the spec validation Stash lacks: it matches a package on
   id *and* source, and a spec missing either runs a job that installs nothing
@@ -155,7 +158,8 @@ Without a reachable server the whole suite skips.
 
 Early. The surface covers scenes with their files and captions, the
 tag/performer/studio entities that metadata pushes need, plugin settings, the
-scan/job pair, database backup, and the plugin and package surface. Operations
+scan/job pair, database backup, the media routes, and the plugin and package
+surface. Operations
 for deduplication work — merging scenes, moving and deleting files — are next;
 `Execute` covers them meanwhile.
 
