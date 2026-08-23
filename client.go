@@ -109,6 +109,7 @@ const maxErrorBody = 2048
 
 // Client talks to one Stash server. It is safe for concurrent use.
 type Client struct {
+	baseURL  string
 	endpoint string
 	apiKey   string
 	cookie   *http.Cookie
@@ -181,8 +182,10 @@ func WithCaptions() Option {
 // NewClient returns a client for the Stash server at baseURL, which is the
 // server root ("http://localhost:9999") — "/graphql" is appended.
 func NewClient(baseURL string, opts ...Option) *Client {
+	root := strings.TrimSuffix(baseURL, "/")
 	c := &Client{
-		endpoint: strings.TrimSuffix(baseURL, "/") + "/graphql",
+		baseURL:  root,
+		endpoint: root + "/graphql",
 		http:     &http.Client{Timeout: 30 * time.Second},
 		maxBytes: DefaultMaxResponseBytes,
 	}
@@ -222,12 +225,7 @@ func (c *Client) do(ctx context.Context, gql graphqlRequest) (json.RawMessage, e
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
-	switch {
-	case c.apiKey != "":
-		req.Header.Set("ApiKey", c.apiKey)
-	case c.cookie != nil:
-		req.AddCookie(c.cookie)
-	}
+	c.authorize(req)
 
 	resp, err := c.http.Do(req)
 	if err != nil {
@@ -270,6 +268,18 @@ func (c *Client) do(ctx context.Context, gql graphqlRequest) (json.RawMessage, e
 		return nil, &APIError{Errors: items}
 	}
 	return gqlResp.Data, nil
+}
+
+// authorize applies whichever credential the client was given. Stash accepts
+// the same two on its plain HTTP routes as on /graphql, so anything fetching
+// a download URL authenticates through here rather than rebuilding it.
+func (c *Client) authorize(req *http.Request) {
+	switch {
+	case c.apiKey != "":
+		req.Header.Set("ApiKey", c.apiKey)
+	case c.cookie != nil:
+		req.AddCookie(c.cookie)
+	}
 }
 
 func (c *Client) redactString(s string) string {

@@ -43,6 +43,9 @@ scenes, err := c.FindAllScenes(ctx, stash.SceneFilter{StudioName: "Example"}, ni
   exists rather than failing every query on a server that lacks it.
 - **Plugin settings.** `PluginSettings("your-plugin")` reads what the user
   configured in the Stash UI, which is how a Go plugin gets its own config.
+- **A database backup you can keep somewhere else.** `DownloadBackup` streams
+  the server's backup to a writer of yours, rather than leaving it on the disk
+  it is meant to insure against.
 - **Tasks and their jobs.** `MetadataScan` starts a scan — the only way to
   make Stash notice a file that appeared on disk — and `FindJob` follows it.
 - **An escape hatch.** `Execute` runs any query against the same transport, so
@@ -147,14 +150,16 @@ Without a reachable server the whole suite skips.
 ## Status
 
 Early. The surface covers scenes with their files and captions, the
-tag/performer/studio entities that metadata pushes need, plugin settings, and
-the scan/job pair. Operations for deduplication work — merging scenes, moving
-and deleting files — are next; `Execute` covers them meanwhile.
+tag/performer/studio entities that metadata pushes need, plugin settings, the
+scan/job pair, and database backup. Operations for deduplication work —
+merging scenes, moving and deleting files — are next; `Execute` covers them
+meanwhile.
 
-`MetadataScan` is the one call the live suite does not exercise: a scan is an
-hours-long mutation against a real library, not something a test should start.
-Its request shape is pinned by unit tests and checked against the server's own
-schema introspection.
+`MetadataScan` and the two backup calls are what the live suite leaves alone,
+because it is read-only by contract and all three write something: a scan is
+an hours-long mutation against a real library, and a backup drops a copy of
+the database on the server's disk. Their request shapes are pinned by unit
+tests and checked against the server's own schema introspection.
 
 ## License
 

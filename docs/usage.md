@@ -180,6 +180,51 @@ id, found, err := c.FindTagByAlias(ctx, name)
 id, err := c.CreateTag(ctx, name)
 ```
 
+## Backing up the database
+
+`DownloadBackup` backs up the server's database and streams it to a writer:
+
+```go
+f, err := os.Create("local.sqlite.backup")
+name, n, err := c.DownloadBackup(ctx, stash.BackupOptions{IncludeBlobs: true}, f)
+```
+
+`name` is what the server called the backup — `local.sqlite.85.20260101_000000`,
+carrying the schema version and the timestamp — which is worth keeping as the
+filename rather than inventing one.
+
+Two things about the transfer are easy to get wrong:
+
+- **The HTTP client's timeout covers all of it.** A database is hundreds of
+  megabytes on a real library, and the default client's 30s timeout applies to
+  the whole stream, not just the response headers. Pass `WithHTTPClient(&http.Client{})`
+  and bound the run with `ctx` instead. A transfer killed by the client's
+  timeout says so, and names the option.
+- **`WithMaxResponseBytes` does not apply.** That cap protects a caller
+  decoding a GraphQL response into memory; this is a stream to a writer you
+  chose.
+
+`BackupDatabase` is the other half: it leaves the backup on the server and
+returns the path it wrote.
+
+```go
+path, err := c.BackupDatabase(ctx, stash.BackupOptions{})
+// C:\Users\you\.stash\local.sqlite.85.20260101_000000
+```
+
+That path is in the *server's* notation, and against a Windows-hosted Stash it
+is a drive letter and backslashes — nothing the calling machine can open, and
+nothing `path/filepath` on a Unix host will parse correctly. It is a string to
+show a human, not a path to act on.
+
+`IncludeBlobs` means nothing on a server that keeps blobs in the database,
+which is what an empty `blobsPath` in the configuration means: there they are
+part of the file either way. It matters where blobs live on the filesystem.
+
+Stash does not delete the temporary file it served the download from — it
+clears that directory on restart — so backing up on a schedule leaves copies
+on the server's temp volume.
+
 ## Older servers
 
 Stash 0.20 or newer is required: the shared selection set asks for the
