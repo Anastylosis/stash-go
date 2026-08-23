@@ -492,7 +492,7 @@ func TestSavedCriteriaCoverEveryFilterField(t *testing.T) {
 	yes := true
 	_, err := NewClient(srv.URL).SaveSceneFilter(context.Background(), "everything", SceneFilter{
 		Organized: &yes, HasStashID: &yes, DateAfter: "2009-01-01",
-		PathContains: "B:\\Rachel", PerformerName: "Someone", StudioName: "A Studio",
+		PathContains: "D:\\Media", PerformerName: "Someone", StudioName: "A Studio",
 	}, &FindFilter{Sort: "date", Direction: "ASC", PerPage: 100, Query: "x"})
 	if err != nil {
 		t.Fatalf("SaveSceneFilter: %v", err)

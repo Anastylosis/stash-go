@@ -117,10 +117,24 @@ for something else writes the two or three methods it actually calls and accepts
 anything satisfying them. A shared interface package would be a coordination
 point with no benefit.
 
-**It does not wrap the whole schema.** The covered surface is scenes plus the
-tag/performer/studio entities a metadata push needs. `Execute` runs any query
-against the same transport, auth and error handling, so an unwrapped corner is
-an inconvenience rather than a wall.
+**It does not wrap the whole schema.** The covered surface is scenes and their
+files, the performer/studio/tag entities, saved filters, plugins and packages,
+the metadata tasks, backup, and stash-box submission — 23 of 62 queries and 37
+of 125 mutations. What is missing is mostly galleries, images, groups and
+markers: object types nothing has needed, where wrapping them untested would
+be worse than leaving them out. `Execute` runs any query against the same
+transport, auth and error handling, so an unwrapped corner is an inconvenience
+rather than a wall.
+
+**It does not hand you raw SQL.** Stash exposes `querySQL` and `execSQL`.
+A Go client offering arbitrary SQL against somebody's library is a footgun
+with no matching benefit, and `Execute` already covers the escape-hatch case
+that motivates them.
+
+**It does not claim to support every Stash version.** Everything here is
+verified against 0.31.1, schema 85. Older servers are likely to work and are
+untested — see the version note in the README for why the hedge is real rather
+than boilerplate.
 
 ## Pagination
 

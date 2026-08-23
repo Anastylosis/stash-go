@@ -6,6 +6,20 @@ import "github.com/Anastylosis/stash-go"
 
 The import path ends in `stash-go`; the package is `stash`.
 
+**Connecting** · [the client](#connecting) · [inside a plugin](#inside-a-stash-plugin) · [your HTTP client](#bring-your-own-http-client)
+
+**Scenes** · [reading](#reading-scenes) · [files and fingerprints](#files-and-fingerprints) · [filtering](#filtering) · [by date](#filtering-by-date) · [the whole library](#whole-library) · [writing](#writing-scenes) · [covers](#cover-images) · [clearing a list](#clearing-a-list) · [media URLs](#media-the-api-will-not-hand-over)
+
+**People and places** · [tags, performers, studios](#tags-performers-and-studios) · [performer details](#performers-and-where-their-details-come-from) · [reading and changing](#reading-changing-and-removing-them) · [deleting and merging](#deleting-and-merging) · [find by stash id](#find-by-stash-id-not-by-name) · [studios and tags](#studios-and-tags)
+
+**Tasks and jobs** · [tasks](#tasks) · [the ones that write](#the-ones-that-write) · [stopping](#stopping)
+
+**Stash-box** · [scraping a scene](#scraping-a-scene) · [scraping a stash-box](#scraping-a-stash-box)
+
+**The rest** · [saved filters](#saved-filters) · [adding tags](#adding-tags-without-replacing-them) · [plugins and packages](#plugins-and-packages) · [interface settings](#interface-settings) · [backup](#backing-up-the-database) · [older servers](#older-servers) · [anything not wrapped](#anything-not-wrapped) · [errors](#errors)
+
+---
+
 ## Connecting
 
 ```go
@@ -539,7 +553,7 @@ it the check worth making before creating anything.
 
 ```go
 found, err := c.ScrapeSceneByID(ctx, endpoint, sceneID)   // by the file's fingerprints
-found, err := c.ScrapeScenes(ctx, endpoint, "MILF1773")   // by text
+found, err := c.ScrapeScenes(ctx, endpoint, "CODE1234")   // by text
 ```
 
 `ScrapeSceneByID` matches on the file's own fingerprints, which is exact.
@@ -574,8 +588,10 @@ wants a list, and the first image is the one to keep.
 
 ## Older servers
 
-Stash 0.20 or newer is required: the shared selection set asks for the
-`files { … }` record introduced there. Everything in it has existed since.
+Verified against Stash 0.31.1, schema 85 — the version the live suite runs
+against, and the only one this has been checked on. Older servers are likely
+to work and are not tested; the shared selection set asks for the `files { … }`
+record introduced in 0.20, and everything in it has existed since.
 
 Asking for a field the schema lacks fails the **whole** query, not just that
 field:

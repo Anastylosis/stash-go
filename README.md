@@ -29,80 +29,55 @@ scenes, err := c.FindAllScenes(ctx, stash.SceneFilter{StudioName: "Example"}, ni
 - **Typed errors.** `*APIError` carries the GraphQL messages, `*HTTPError` the
   status — so you can branch on a schema mismatch versus a bad key without
   matching on error text.
-- **Sentinel errors for missing filter targets.** Stash answers "no such
-  performer" with an empty result set, so a typo looks exactly like a genuine
-  no-match. `ErrPerformerNotFound` and `ErrStudioNotFound` make the difference
-  visible.
 - **The API key never reaches an error string.** Some GraphQL middlewares echo
-  the request back on auth failure; those messages get logged.
-- **Scenes with their files.** Path, size, resolution, codecs and content
-  fingerprints come back with every scene, so duplicate detection does not have
-  to re-query for them.
-- **Captions, when the server has them.** `WithCaptions()` adds
-  `Scene.Captions` to the scene queries, probing once to check the field
-  exists rather than failing every query on a server that lacks it.
-- **Plugin settings.** `PluginSettings("your-plugin")` reads what the user
-  configured in the Stash UI, which is how a Go plugin gets its own config.
-- **A database backup you can keep somewhere else.** `DownloadBackup` streams
-  the server's backup to a writer of yours, rather than leaving it on the disk
-  it is meant to insure against.
-- **Performers with their details, identified the stable way.**
-  `CreatePerformerFrom` writes everything Stash stores about one;
-  `FindPerformerByStashID` is the check worth making first, because names
-  collide and change while a stash-box id does not. `ScrapePerformers` fills
-  the details in from a stash-box, and converts what it finds into what the
-  create call wants.
-- **Saved filters, in the notation they are actually stored in.** A saved
-  filter writes its criteria differently from a query — `"value": {"value": …}`,
-  tags as labelled items, booleans as strings — and Stash accepts the query
-  notation, stores it, and shows a filter that does nothing. `SaveSceneFilter`
-  takes the same `SceneFilter` you query with and writes the other one.
-- **Stash-box scraping, for scenes as well as performers.** By fingerprint,
-  which is exact, or by text, which is not — and the doc says which is which.
-- **Tags and performers that add rather than replace.** `SceneUpdate.TagIDs` overwrites a
-  scene's tags, so adding one through it is a read-modify-write that loses
-  whatever arrived in between. `AddSceneTags` uses Stash's ADD mode, for many
-  scenes in one request; `AddScenePerformers` likewise.
-- **The media routes, authenticated.** `Fetch` streams a scene's sprite sheet,
-  cover or stream — things GraphQL will not return as data — applying the same
-  credential, and telling a lazily-ungenerated one from a real failure.
-- **Plugins, and the package manager that installs them.** `InstallPackages`
-  and friends, with the spec validation Stash lacks: it matches a package on
-  id *and* source, and a spec missing either runs a job that installs nothing
-  and reports success.
-- **Studios and tags in full**, on the performer pattern: read, partial
-  update, a call that can actually empty a field, delete, and `MergeTags` for
-  the duplicates every library grows.
-- **The tasks, with their footguns documented.** Generate, identify, clean and
-  auto-tag, every flag off by default; the three that write data say what they
-  overwrite and why a dry run matters first. `StopJob` and `StopAllJobs` to end
-  them.
-- **Tasks and their jobs.** `MetadataScan` starts a scan — the only way to
-  make Stash notice a file that appeared on disk — and `FindJob` follows it.
-- **An escape hatch.** `Execute` runs any query against the same transport, so
-  an unwrapped corner of the schema does not mean starting over — and
-  `SceneFields` drops the standard selection set into your own query, so the
-  result still decodes into `Scene`.
+  the request back on auth failure, and those messages get logged.
+- **Sentinel errors where Stash answers with silence.** A filter naming a
+  performer that does not exist returns an empty result set, so a typo looks
+  exactly like a genuine no-match. `ErrPerformerNotFound`, `ErrStudioNotFound`
+  and `ErrTagNotFound` make the difference visible.
+- **Partial updates that cannot clear a field by accident** — and separate
+  calls for when clearing is what you meant.
 
-## Schema differences between versions
+## What it covers
 
-Stash 0.20 or newer is required.
+Scenes, performers, studios and tags; the files and fingerprints behind a
+scene; saved filters; plugins and the package manager; the metadata tasks and
+the jobs they run; database backup; and submitting to a stash-box.
 
-GraphQL fails the **whole** query when asked for a field the schema lacks — one
-unknown field costs the entire response, not just that field. Against an older
-server that turns into a confusing total failure.
+That is **23 of Stash's 62 queries and 37 of its 125 mutations**. The rest is
+mostly galleries, images, groups and markers — whole object types this has
+never needed, and writing them untested would be worse than leaving them out.
+`Execute` reaches anything not wrapped, using the same transport, auth and
+error handling.
+
+The notable gap for anyone doing library maintenance is **deduplication**:
+`sceneMerge`, `sceneDestroy` and `moveFiles` are not here yet, though
+`MergePerformers` and `MergeTags` are.
+
+## Which Stash it works against
+
+**Verified against Stash 0.31.1 (schema 85).** That is the version the live
+suite runs on, and the only one anything has been checked against.
+
+Older servers are *likely* to work and are not tested. Two things found while
+building this are the reason for the hedge: Stash's date criterion requires a
+`value` even when the modifier ignores it, and `career_start` is declared
+`String` although it holds a year. Shapes like those drift between releases,
+and a mismatch is not subtle — GraphQL fails the **whole** query when asked
+for a field the schema lacks, so one wrong field costs the entire response.
+
+Where a field is known to vary, ask first:
 
 ```go
 if ok, _ := c.Supports(ctx, "captions"); ok {
-    // safe to ask for it
+    // safe to include it
 }
 ```
 
-Introspection runs once per client and is cached.
-
-`Scene.captions` is the field this matters most for, so it has an option of
-its own. It is off by default: honouring it costs an introspection request,
-and a caller that does not want captions should not pay for one.
+Introspection runs once per client and is cached. `Scene.captions` is the
+field this matters most for, so it has an option of its own — off by default,
+because honouring it costs an introspection request a caller who does not want
+captions should not pay:
 
 ```go
 c := stash.NewClient(url, stash.WithCaptions())
@@ -111,36 +86,35 @@ c := stash.NewClient(url, stash.WithCaptions())
 With the option set and the field absent, scene queries run unchanged and
 `Scene.Captions` stays nil rather than erroring.
 
-## Partial updates are non-destructive
+## Three things that surprise people
 
-`SceneUpdate` sends only the fields you set. An unset `Title` leaves the
-existing title alone rather than clearing it.
+**A partial update cannot empty a field.** `SceneUpdate` sends only what you
+set, so an unset `Title` leaves the stored one alone — which is what makes it
+safe, and what makes `Title: ""` mean "leave it" rather than "clear it".
 
 ```go
 title := "Corrected"
 err := c.UpdateScene(ctx, stash.SceneUpdate{ID: id, Title: &title})
+err = c.ClearSceneFields(ctx, id, "title")   // actually empties it
 ```
 
-## Scanning, and why it matters for subtitles
+`ClearPerformerFields`, `ClearStudioFields` and `ClearTagFields` do the same
+for the others, sending the empty value each field's type wants.
 
-Captions are read-only in GraphQL. A subtitle is attached by writing a
-sidecar next to the video and making Stash scan for it — there is no
-mutation that attaches one.
+**List fields replace rather than add.** `SceneUpdate.TagIDs` overwrites a
+scene's tags, so adding one through it means a read-modify-write that loses
+whatever arrived in between. `AddSceneTags` and `AddScenePerformers` use
+Stash's own ADD mode instead, for many scenes in one request.
+
+**Captions are read-only.** A subtitle is attached by writing a sidecar next
+to the video and making Stash scan for it; there is no mutation that attaches
+one.
 
 ```go
 job, err := c.MetadataScan(ctx, stash.ScanOptions{Paths: []string{dir}})
 ```
 
-Every generate flag defaults to off. That is *not* Stash's own default, which
-remembers whatever was ticked last in the UI — a library call that quietly
-started generating covers, previews and sprites across a library would be an
-expensive surprise. Ask for what you want:
-
-```go
-stash.ScanOptions{Paths: []string{dir}, GeneratePhashes: true}
-```
-
-Scanning is a background job, so `MetadataScan` returns an id rather than
+Scanning and generating are background jobs, so they return an id rather than
 waiting:
 
 ```go
@@ -156,21 +130,37 @@ for {
 `Status.Done()` covers all three terminal states — treating `CANCELLED` as
 still-running turns that loop into a hang.
 
+Every generate flag defaults to off, which is *not* Stash's own default. A
+generate across a library is hours of work and gigabytes of output, so ask for
+what you want:
+
+```go
+job, err := c.MetadataGenerate(ctx, stash.GenerateOptions{
+    Sprites: true, Phashes: true, SceneIDs: []string{id},
+})
+```
+
 ## Documentation
 
-- [docs/usage.md](docs/usage.md) — the API, paginating large libraries, and
-  ensuring tags/performers/studios exist
-- [docs/design.md](docs/design.md) — why the client is shaped this way, and
-  what it deliberately does not do
-- [CONTRIBUTING.md](CONTRIBUTING.md) — cutting a release, and the two
-  constraints any addition has to respect
+- [docs/usage.md](docs/usage.md) — the API, call by call
+- [docs/design.md](docs/design.md) — why it is shaped this way, and what it
+  deliberately does not do
+- [CONTRIBUTING.md](CONTRIBUTING.md) — cutting a release, and the constraints
+  any addition has to respect
 
 ## Tests
 
-`go test ./...` needs no network — every test drives an `httptest` stub.
+`go test ./...` needs no network — every test drives an `httptest` stub, and
+CI enforces that nothing reaches out.
 
-A second suite runs against a real server. It is read-only: it queries, and
-never creates, updates or deletes anything.
+Two properties are asserted across **every** method that talks to the server,
+so anything added later is covered the moment it joins the list: that it
+reports a problem rather than returning a zero value and no error, against a
+GraphQL error, an HTTP 500, an HTTP 401 and a body that is not JSON; and that
+it never lets the API key into an error string.
+
+A second suite runs against a real server. It is read-only by contract: it
+queries, and never creates, updates or deletes.
 
 ```sh
 STASH_URL=http://your-server:9999 STASH_API_KEY=… go test -tags integration ./...
@@ -178,32 +168,22 @@ STASH_URL=http://your-server:9999 STASH_API_KEY=… go test -tags integration ./
 
 Without a reachable server the whole suite skips.
 
+The calls that write are therefore **not** exercised live — scans, generates,
+backups, package installs and the entity mutations are pinned by unit tests
+and checked against the server's own schema introspection instead. A scan is
+an hours-long mutation against somebody's real library; a test should not
+start one.
+
 ## Status
 
-Early, and growing towards covering what the Stash API offers rather than
-what any one program needs from it.
+Useful and in production against one library, not finished.
 
-Wrapped so far: scenes with their files and captions, the tag/performer/studio
-entities that metadata pushes need, performers, studios and tags with the stash-box details behind them, scene media paths and the routes that serve them, saved filters,
-plugin settings, the plugin package manager, interface configuration, database
-backup, performer editing and merging, the scan/generate/identify/clean tasks and the jobs that run them.
+Solid in the sense that matters: the surface it has is tested, the error paths
+with it, and three real bugs found by using it are fixed. Incomplete in that
+half the API is not here, and only one Stash version has ever been checked.
 
-Not wrapped yet, roughly in the order they are likely to matter: submitting
-drafts and fingerprints to a stash-box, merging and destroying scenes, moving
-and deleting files, the generate/identify/clean tasks, stopping a running job,
-and the import/export pair. Galleries, images,
-groups, markers and DLNA are untouched. `querySQL` and `execSQL` are
-deliberately left out — a client that hands you arbitrary SQL against
-someone's library is a footgun, and `Execute` already covers the escape hatch.
-
-`Execute` reaches all of it meanwhile.
-
-`MetadataScan`, the backup calls and the package mutations are what the live
-suite leaves alone, because it is read-only by contract and all of them write
-something: a scan is an hours-long mutation against a real library, a backup
-drops a copy of the database on the server's disk, and an install puts
-software in its plugin directory. Their request shapes are pinned by unit tests
-and checked against the server's own schema introspection.
+Versions follow `vMAJOR.MINOR.PATCH`. Everything since v0.7.0 has been
+additive — no call has changed its signature or its behaviour.
 
 ## License
 

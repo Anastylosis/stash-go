@@ -294,7 +294,7 @@ func TestMergePerformersRefusesToMergeIntoItself(t *testing.T) {
 
 func TestPerformerFilterCriteria(t *testing.T) {
 	yes := true
-	got := PerformerFilter{NameContains: "rachel", Gender: "FEMALE", Favorite: &yes, HasScenes: &yes}.criteria()
+	got := PerformerFilter{NameContains: "example", Gender: "FEMALE", Favorite: &yes, HasScenes: &yes}.criteria()
 	if got["name"].(map[string]any)["modifier"] != "INCLUDES" {
 		t.Errorf("name = %v", got["name"])
 	}
