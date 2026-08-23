@@ -432,3 +432,32 @@ func TestSetSceneStashIDsNeedsASceneID(t *testing.T) {
 		t.Error("want an error without a scene id")
 	}
 }
+
+// SceneUpdate omits empty fields, so it cannot empty one. A title written
+// over a scene that never had one has to be removable.
+func TestClearSceneFieldsSendsTheRightEmptyValue(t *testing.T) {
+	cap := &capture{}
+	srv := httptest.NewServer(cap.handler(`{"data":{"sceneUpdate":{"id":"1"}}}`))
+	defer srv.Close()
+
+	if err := NewClient(srv.URL).ClearSceneFields(context.Background(), "1", "title", "urls"); err != nil {
+		t.Fatalf("ClearSceneFields: %v", err)
+	}
+	b, _ := json.Marshal(cap.reqs[0].Variables["input"])
+	if !strings.Contains(string(b), `"title":""`) {
+		t.Errorf("input = %s, want an empty title", b)
+	}
+	if !strings.Contains(string(b), `"urls":[]`) {
+		t.Errorf("input = %s, want an empty list for urls", b)
+	}
+}
+
+func TestClearSceneFieldsRefusesAnythingButAFieldName(t *testing.T) {
+	_, c := server(t, reply(`{"data":{}}`))
+	if err := c.ClearSceneFields(context.Background(), "1", "title details"); err == nil {
+		t.Error("want an error for something that is not a field name")
+	}
+	if err := c.ClearSceneFields(context.Background(), "", "title"); err == nil {
+		t.Error("want an error without an id")
+	}
+}

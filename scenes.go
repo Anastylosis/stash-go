@@ -359,3 +359,39 @@ func (c *Client) SetSceneStashIDs(ctx context.Context, sceneID string, ids []Sta
 	}
 	return nil
 }
+
+// ClearSceneFields empties the named fields, which [SceneUpdate] cannot: it
+// omits what is unset so that a partial update is safe, and that makes "" and
+// "leave it alone" the same request.
+//
+// Names are the SceneUpdateInput field names — "title", "details", "date",
+// "code". A name Stash does not know fails the whole mutation rather than
+// being ignored.
+func (c *Client) ClearSceneFields(ctx context.Context, id string, fields ...string) error {
+	if id == "" {
+		return fmt.Errorf("stash: clearing scene fields: no id")
+	}
+	if len(fields) == 0 {
+		return nil
+	}
+	in := map[string]any{"id": id}
+	for _, f := range fields {
+		if !isFieldName(f) {
+			return fmt.Errorf("stash: clearing scene fields: %q is not a field name", f)
+		}
+		switch f {
+		case "urls", "tag_ids", "performer_ids", "gallery_ids", "stash_ids":
+			in[f] = []any{}
+		default:
+			in[f] = ""
+		}
+	}
+	_, err := c.do(ctx, graphqlRequest{
+		Query:     `mutation($input: SceneUpdateInput!) { sceneUpdate(input: $input) { id } }`,
+		Variables: map[string]any{"input": in},
+	})
+	if err != nil {
+		return fmt.Errorf("stash: clearing fields on scene %s: %w", id, err)
+	}
+	return nil
+}
