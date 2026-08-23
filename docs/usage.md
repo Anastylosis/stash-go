@@ -358,6 +358,22 @@ performers share one, one performer changes theirs, a scraper writes it with
 different punctuation. A stash-box id is the same string forever, which makes
 it the check worth making before creating anything.
 
+### Scraping a scene
+
+```go
+found, err := c.ScrapeSceneByID(ctx, endpoint, sceneID)   // by the file's fingerprints
+found, err := c.ScrapeScenes(ctx, endpoint, "MILF1773")   // by text
+```
+
+`ScrapeSceneByID` matches on the file's own fingerprints, which is exact.
+`ScrapeScenes` matches on whatever the stash-box searches — titles, in
+practice — so it returns the studio's *other* scenes when it does not have the
+one asked for. One result is not the same as the right result: check something
+about it, ideally something the stash-box did not supply, before believing it.
+
+An empty result is the ordinary answer for a library the stash-box does not
+cover, not a failure.
+
 ### Scraping a stash-box
 
 ```go

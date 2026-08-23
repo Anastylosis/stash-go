@@ -3,6 +3,7 @@ package stash
 import (
 	"context"
 	"fmt"
+	"strings"
 )
 
 // AddSceneTags adds tags to scenes, leaving the tags they already have alone.
@@ -22,8 +23,24 @@ func (c *Client) RemoveSceneTags(ctx context.Context, tagIDs []string, sceneIDs 
 	return c.bulkSceneTags(ctx, "REMOVE", tagIDs, sceneIDs)
 }
 
+// AddScenePerformers adds performers to scenes, leaving the ones they
+// already have alone — the same reason [Client.AddSceneTags] exists.
+func (c *Client) AddScenePerformers(ctx context.Context, performerIDs []string, sceneIDs ...string) error {
+	return c.bulkSceneIDs(ctx, "performer_ids", "ADD", performerIDs, sceneIDs)
+}
+
+// RemoveScenePerformers removes performers from scenes, leaving their others
+// alone.
+func (c *Client) RemoveScenePerformers(ctx context.Context, performerIDs []string, sceneIDs ...string) error {
+	return c.bulkSceneIDs(ctx, "performer_ids", "REMOVE", performerIDs, sceneIDs)
+}
+
 func (c *Client) bulkSceneTags(ctx context.Context, mode string, tagIDs, sceneIDs []string) error {
-	if len(tagIDs) == 0 || len(sceneIDs) == 0 {
+	return c.bulkSceneIDs(ctx, "tag_ids", mode, tagIDs, sceneIDs)
+}
+
+func (c *Client) bulkSceneIDs(ctx context.Context, field, mode string, ids, sceneIDs []string) error {
+	if len(ids) == 0 || len(sceneIDs) == 0 {
 		// Sending either empty is a request that changes nothing, and Stash
 		// need not hear about it.
 		return nil
@@ -31,12 +48,13 @@ func (c *Client) bulkSceneTags(ctx context.Context, mode string, tagIDs, sceneID
 	_, err := c.do(ctx, graphqlRequest{
 		Query: `mutation($input: BulkSceneUpdateInput!) { bulkSceneUpdate(input: $input) { id } }`,
 		Variables: map[string]any{"input": map[string]any{
-			"ids":     sceneIDs,
-			"tag_ids": map[string]any{"ids": tagIDs, "mode": mode},
+			"ids": sceneIDs,
+			field: map[string]any{"ids": ids, "mode": mode},
 		}},
 	})
 	if err != nil {
-		return fmt.Errorf("stash: %sing scene tags: %w", map[string]string{"ADD": "add", "REMOVE": "remov"}[mode], err)
+		verb := map[string]string{"ADD": "adding", "REMOVE": "removing"}[mode]
+		return fmt.Errorf("stash: %s scene %s: %w", verb, strings.TrimSuffix(field, "_ids"), err)
 	}
 	return nil
 }

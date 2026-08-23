@@ -52,10 +52,12 @@ scenes, err := c.FindAllScenes(ctx, stash.SceneFilter{StudioName: "Example"}, ni
   collide and change while a stash-box id does not. `ScrapePerformers` fills
   the details in from a stash-box, and converts what it finds into what the
   create call wants.
-- **Tags that add rather than replace.** `SceneUpdate.TagIDs` overwrites a
+- **Stash-box scraping, for scenes as well as performers.** By fingerprint,
+  which is exact, or by text, which is not — and the doc says which is which.
+- **Tags and performers that add rather than replace.** `SceneUpdate.TagIDs` overwrites a
   scene's tags, so adding one through it is a read-modify-write that loses
   whatever arrived in between. `AddSceneTags` uses Stash's ADD mode, for many
-  scenes in one request.
+  scenes in one request; `AddScenePerformers` likewise.
 - **The media routes, authenticated.** `Fetch` streams a scene's sprite sheet,
   cover or stream — things GraphQL will not return as data — applying the same
   credential, and telling a lazily-ungenerated one from a real failure.
