@@ -240,6 +240,57 @@ Stash does not delete the temporary file it served the download from — it
 clears that directory on restart — so backing up on a schedule leaves copies
 on the server's temp volume.
 
+## Tasks
+
+Every task is a background job and returns an id for `FindJob`.
+
+```go
+job, err := c.MetadataGenerate(ctx, stash.GenerateOptions{
+    Sprites: true, Phashes: true, SceneIDs: []string{"36"},
+})
+```
+
+`MetadataGenerate` produces what a scan does not: covers, sprites and
+perceptual hashes. Those three are what other work depends on — a scene with
+no sprite cannot be read for a title card, and one with no phash cannot be
+matched against a stash-box.
+
+**Every flag defaults to off**, the same as `ScanOptions`, because generating
+across a library is hours of work and gigabytes of output. `SceneIDs` and
+`Paths` are omitted when empty rather than sent as empty lists: Stash reads an
+absent scope as "the whole library", so the two are different requests.
+
+Without `Overwrite`, Stash skips what it already has, which is what makes a
+second run cheap.
+
+### The ones that write
+
+Three of these change data rather than producing files, and each has a way of
+being worse than it looks:
+
+- **`MetadataIdentify`** matches scenes against a stash-box and applies what it
+  finds. Whether it overwrites existing fields is decided by rules configured
+  on the server, which this call cannot see.
+- **`MetadataClean`** removes the records of files that are no longer on disk.
+  An unmounted drive presents as a library whose files were all deleted. Use
+  `DryRun` first.
+- **`MetadataAutoTag`** attaches performers, studios and tags to scenes whose
+  *path* contains their name. That is a guess about filenames; on a library
+  with a performer called "Angel" it is a bad one. `"*"` means all of a kind,
+  which is what the UI's button sends, and a call with no lists at all is
+  refused rather than started as a job that does nothing.
+
+### Stopping
+
+```go
+err := c.StopJob(ctx, job)
+err := c.StopAllJobs(ctx)
+```
+
+Both return without waiting. The job moves to `STOPPING` and then to
+`CANCELLED`, which `JobStatus.Done()` counts as terminal — treating it as
+still-running is how a poll loop becomes a hang.
+
 ## Saved filters
 
 A saved filter is what appears in Stash's sidebar, and its criteria are **not

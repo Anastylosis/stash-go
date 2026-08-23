@@ -102,33 +102,36 @@ type Tag struct {
 // otherwise drag a full performer record along for every credit.
 // [Client.FindPerformerByID] and [Client.FindPerformers] fill the rest in.
 type Performer struct {
-	ID             string    `json:"id"`
-	Name           string    `json:"name"`
-	Disambiguation string    `json:"disambiguation"`
-	Gender         string    `json:"gender"`
-	Birthdate      string    `json:"birthdate"`
-	DeathDate      string    `json:"death_date"`
-	Country        string    `json:"country"`
-	Ethnicity      string    `json:"ethnicity"`
-	EyeColor       string    `json:"eye_color"`
-	HairColor      string    `json:"hair_color"`
-	HeightCM       int       `json:"height_cm"`
-	Weight         int       `json:"weight"`
-	Measurements   string    `json:"measurements"`
-	FakeTits       string    `json:"fake_tits"`
-	CareerStart    int       `json:"career_start"`
-	CareerEnd      int       `json:"career_end"`
-	Tattoos        string    `json:"tattoos"`
-	Piercings      string    `json:"piercings"`
-	Aliases        []string  `json:"alias_list"`
-	URLs           []string  `json:"urls"`
-	Details        string    `json:"details"`
-	Favorite       bool      `json:"favorite"`
-	Rating100      *int      `json:"rating100"`
-	ImagePath      string    `json:"image_path"`
-	SceneCount     int       `json:"scene_count"`
-	Tags           []Tag     `json:"tags"`
-	StashIDs       []StashID `json:"stash_ids"`
+	ID             string `json:"id"`
+	Name           string `json:"name"`
+	Disambiguation string `json:"disambiguation"`
+	Gender         string `json:"gender"`
+	Birthdate      string `json:"birthdate"`
+	DeathDate      string `json:"death_date"`
+	Country        string `json:"country"`
+	Ethnicity      string `json:"ethnicity"`
+	EyeColor       string `json:"eye_color"`
+	HairColor      string `json:"hair_color"`
+	HeightCM       int    `json:"height_cm"`
+	Weight         int    `json:"weight"`
+	Measurements   string `json:"measurements"`
+	FakeTits       string `json:"fake_tits"`
+	// CareerStart and CareerEnd are strings on the wire, not numbers: Stash
+	// stores them as years but declares them String, and decoding them as
+	// ints fails every performer query.
+	CareerStart string    `json:"career_start"`
+	CareerEnd   string    `json:"career_end"`
+	Tattoos     string    `json:"tattoos"`
+	Piercings   string    `json:"piercings"`
+	Aliases     []string  `json:"alias_list"`
+	URLs        []string  `json:"urls"`
+	Details     string    `json:"details"`
+	Favorite    bool      `json:"favorite"`
+	Rating100   *int      `json:"rating100"`
+	ImagePath   string    `json:"image_path"`
+	SceneCount  int       `json:"scene_count"`
+	Tags        []Tag     `json:"tags"`
+	StashIDs    []StashID `json:"stash_ids"`
 }
 
 // Studio a scene belongs to.

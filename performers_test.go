@@ -310,3 +310,18 @@ func TestPerformerFilterCriteria(t *testing.T) {
 		t.Error("an empty filter should filter nothing")
 	}
 }
+
+// Stash declares these String even though they hold years. Decoding them as
+// numbers failed every performer query, and only against a real server —
+// nothing in a stub had said otherwise.
+func TestPerformerCareerYearsDecodeAsStrings(t *testing.T) {
+	_, c := server(t, reply(`{"data":{"findPerformer":{
+		"id":"1","name":"Example","career_start":"1999","career_end":"2010"}}}`))
+	p, found, err := c.FindPerformerByID(context.Background(), "1")
+	if err != nil || !found {
+		t.Fatalf("FindPerformerByID: %v, found=%v", err, found)
+	}
+	if p.CareerStart != "1999" || p.CareerEnd != "2010" {
+		t.Errorf("career = %q..%q", p.CareerStart, p.CareerEnd)
+	}
+}

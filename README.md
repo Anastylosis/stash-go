@@ -70,6 +70,10 @@ scenes, err := c.FindAllScenes(ctx, stash.SceneFilter{StudioName: "Example"}, ni
   and friends, with the spec validation Stash lacks: it matches a package on
   id *and* source, and a spec missing either runs a job that installs nothing
   and reports success.
+- **The tasks, with their footguns documented.** Generate, identify, clean and
+  auto-tag, every flag off by default; the three that write data say what they
+  overwrite and why a dry run matters first. `StopJob` and `StopAllJobs` to end
+  them.
 - **Tasks and their jobs.** `MetadataScan` starts a scan — the only way to
   make Stash notice a file that appeared on disk — and `FindJob` follows it.
 - **An escape hatch.** `Execute` runs any query against the same transport, so
@@ -180,12 +184,12 @@ Wrapped so far: scenes with their files and captions, the tag/performer/studio
 entities that metadata pushes need, performers with the stash-box details
 behind them, scene media paths and the routes that serve them, saved filters,
 plugin settings, the plugin package manager, interface configuration, database
-backup, performer editing and merging, and the scan/job pair.
+backup, performer editing and merging, the scan/generate/identify/clean tasks and the jobs that run them.
 
 Not wrapped yet, roughly in the order they are likely to matter: submitting
 drafts and fingerprints to a stash-box, merging and destroying scenes, moving
 and deleting files, the generate/identify/clean tasks, stopping a running job,
-and updating or merging studios and tags. Galleries, images,
+updating or merging studios and tags, and the import/export pair. Galleries, images,
 groups, markers and DLNA are untouched. `querySQL` and `execSQL` are
 deliberately left out — a client that hands you arbitrary SQL against
 someone's library is a footgun, and `Execute` already covers the escape hatch.

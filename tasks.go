@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 // ScanOptions selects what [Client.MetadataScan] scans and what it
@@ -149,4 +150,237 @@ func (c *Client) JobQueue(ctx context.Context) ([]Job, error) {
 		return nil, fmt.Errorf("stash: decoding job queue: %w", err)
 	}
 	return result.JobQueue, nil
+}
+
+// GenerateOptions selects what [Client.MetadataGenerate] produces.
+//
+// Every flag defaults to off, for the reason [ScanOptions] gives: generating
+// across a library is hours of work and gigabytes of output, and a library
+// call that quietly started doing it would be an expensive surprise. Ask for
+// what you want.
+type GenerateOptions struct {
+	// Covers, Sprites and Phashes are the three that other work depends on.
+	// A scene with no sprite cannot be read for a title card; a scene with
+	// no phash cannot be matched against a stash-box.
+	Covers  bool
+	Sprites bool
+	Phashes bool
+
+	Previews      bool
+	ImagePreviews bool
+	Markers       bool
+	Transcodes    bool
+	// ForceTranscodes re-encodes even where a transcode already exists.
+	ForceTranscodes           bool
+	InteractiveHeatmapsSpeeds bool
+	ImagePhashes              bool
+	ImageThumbnails           bool
+	ClipPreviews              bool
+
+	// SceneIDs restricts the job to these scenes; Paths to these library
+	// paths. Both empty means the whole library.
+	SceneIDs []string
+	Paths    []string
+
+	// Overwrite regenerates what is already there. Without it Stash skips
+	// anything it has, which is what makes a second run cheap.
+	Overwrite bool
+}
+
+// MetadataGenerate starts a generate job and returns the id of the job doing
+// it. It does not wait; follow it with [Client.FindJob].
+//
+// This is how a scene gets the sprite, cover or perceptual hash that other
+// work needs and a plain scan does not produce.
+func (c *Client) MetadataGenerate(ctx context.Context, opts GenerateOptions) (jobID string, err error) {
+	input := map[string]any{
+		"covers":                    opts.Covers,
+		"sprites":                   opts.Sprites,
+		"phashes":                   opts.Phashes,
+		"previews":                  opts.Previews,
+		"imagePreviews":             opts.ImagePreviews,
+		"markers":                   opts.Markers,
+		"transcodes":                opts.Transcodes,
+		"forceTranscodes":           opts.ForceTranscodes,
+		"interactiveHeatmapsSpeeds": opts.InteractiveHeatmapsSpeeds,
+		"imagePhashes":              opts.ImagePhashes,
+		"imageThumbnails":           opts.ImageThumbnails,
+		"clipPreviews":              opts.ClipPreviews,
+		"overwrite":                 opts.Overwrite,
+	}
+	// Omitted rather than sent empty, the same way MetadataScan handles
+	// paths: an empty list is not the same request as no list, and Stash
+	// reads the second as "everything".
+	if len(opts.SceneIDs) > 0 {
+		input["sceneIDs"] = opts.SceneIDs
+	}
+	if len(opts.Paths) > 0 {
+		input["paths"] = opts.Paths
+	}
+	return c.startJob(ctx, "metadataGenerate", "GenerateMetadataInput", input)
+}
+
+// IdentifyOptions configures [Client.MetadataIdentify], Stash's own matching
+// of scenes against a stash-box.
+type IdentifyOptions struct {
+	// Sources are the stash-box endpoints or scraper ids to try, in order.
+	// Empty uses whatever the server has configured as its defaults.
+	Sources []string
+	// SceneIDs restricts the job to these scenes; Paths to these library
+	// paths. Both empty means everything.
+	SceneIDs []string
+	Paths    []string
+}
+
+// MetadataIdentify starts an identify job and returns its id.
+//
+// Identify is a *writing* task: it matches scenes against a stash-box and
+// applies what it finds, according to the field rules configured on the
+// server. Those rules decide whether it overwrites what is already there, and
+// this call cannot see them — check them before starting one on a library
+// whose metadata you care about.
+func (c *Client) MetadataIdentify(ctx context.Context, opts IdentifyOptions) (jobID string, err error) {
+	sources := make([]map[string]any, 0, len(opts.Sources))
+	for _, s := range opts.Sources {
+		source := map[string]any{}
+		// An endpoint is a stash-box; anything else is a scraper id.
+		if strings.Contains(s, "://") {
+			source["stash_box_endpoint"] = s
+		} else {
+			source["scraper_id"] = s
+		}
+		sources = append(sources, map[string]any{"source": source})
+	}
+	input := map[string]any{}
+	if len(sources) > 0 {
+		input["sources"] = sources
+	}
+	if len(opts.SceneIDs) > 0 {
+		input["sceneIDs"] = opts.SceneIDs
+	}
+	if len(opts.Paths) > 0 {
+		input["paths"] = opts.Paths
+	}
+	return c.startJob(ctx, "metadataIdentify", "IdentifyMetadataInput", input)
+}
+
+// CleanOptions configures [Client.MetadataClean].
+type CleanOptions struct {
+	// Paths restricts the clean to these library paths.
+	Paths []string
+	// DryRun makes Stash report what it would remove without removing it.
+	// Worth using first: clean deletes database records for files it cannot
+	// find, and a library on a disconnected drive looks exactly like a
+	// library whose files were deleted.
+	DryRun bool
+	// IgnoreZipFileContents skips files inside zips.
+	IgnoreZipFileContents bool
+}
+
+// MetadataClean starts a clean job and returns its id.
+//
+// Clean removes the records of files that are no longer on disk. That is
+// destructive and depends on the disk being readable at the time: an
+// unmounted drive presents as a library whose files have all been deleted.
+// Use DryRun first.
+func (c *Client) MetadataClean(ctx context.Context, opts CleanOptions) (jobID string, err error) {
+	input := map[string]any{
+		"dryRun":                opts.DryRun,
+		"ignoreZipFileContents": opts.IgnoreZipFileContents,
+	}
+	if len(opts.Paths) > 0 {
+		input["paths"] = opts.Paths
+	}
+	return c.startJob(ctx, "metadataClean", "CleanMetadataInput", input)
+}
+
+// AutoTagOptions configures [Client.MetadataAutoTag].
+//
+// Each list names what to match against, and "*" means all of that kind —
+// which is what the UI's button sends. Empty lists match nothing, so a call
+// with none set is a job that does nothing.
+type AutoTagOptions struct {
+	Paths      []string
+	Performers []string
+	Studios    []string
+	Tags       []string
+}
+
+// MetadataAutoTag starts an auto-tag job and returns its id.
+//
+// Auto-tag attaches performers, studios and tags to scenes whose *path*
+// contains their name. That is a guess about filenames, and it writes: on a
+// library whose files are named after their content it is useful, and on one
+// where a performer is called "Angel" it is not.
+func (c *Client) MetadataAutoTag(ctx context.Context, opts AutoTagOptions) (jobID string, err error) {
+	input := map[string]any{}
+	for key, v := range map[string][]string{
+		"paths": opts.Paths, "performers": opts.Performers,
+		"studios": opts.Studios, "tags": opts.Tags,
+	} {
+		if len(v) > 0 {
+			input[key] = v
+		}
+	}
+	if len(input) == 0 {
+		return "", fmt.Errorf("stash: auto-tag: nothing to match against")
+	}
+	return c.startJob(ctx, "metadataAutoTag", "AutoTagMetadataInput", input)
+}
+
+// StopJob asks Stash to stop one running job. It returns without waiting: the
+// job moves to STOPPING and reaches a terminal state in its own time, which
+// [Client.FindJob] reports.
+func (c *Client) StopJob(ctx context.Context, jobID string) error {
+	if jobID == "" {
+		return fmt.Errorf("stash: stopping job: no id")
+	}
+	_, err := c.do(ctx, graphqlRequest{
+		Query:     `mutation($id: ID!) { stopJob(job_id: $id) }`,
+		Variables: map[string]any{"id": jobID},
+	})
+	if err != nil {
+		return fmt.Errorf("stash: stopping job %s: %w", jobID, err)
+	}
+	return nil
+}
+
+// StopAllJobs asks Stash to stop everything queued and running.
+func (c *Client) StopAllJobs(ctx context.Context) error {
+	if _, err := c.do(ctx, graphqlRequest{Query: `mutation { stopAllJobs }`}); err != nil {
+		return fmt.Errorf("stash: stopping all jobs: %w", err)
+	}
+	return nil
+}
+
+// OptimiseDatabase starts a database optimisation job and returns its id.
+func (c *Client) OptimiseDatabase(ctx context.Context) (jobID string, err error) {
+	data, err := c.do(ctx, graphqlRequest{Query: `mutation { optimiseDatabase }`})
+	if err != nil {
+		return "", fmt.Errorf("stash: optimising the database: %w", err)
+	}
+	var result struct {
+		OptimiseDatabase string `json:"optimiseDatabase"`
+	}
+	if err := json.Unmarshal(data, &result); err != nil {
+		return "", fmt.Errorf("stash: decoding job id: %w", err)
+	}
+	return result.OptimiseDatabase, nil
+}
+
+// startJob runs one of the metadata mutations and returns the job id they all
+// answer with.
+func (c *Client) startJob(ctx context.Context, mutation, inputType string, input map[string]any) (string, error) {
+	data, err := c.do(ctx, graphqlRequest{
+		Query:     `mutation($input: ` + inputType + `!) { ` + mutation + `(input: $input) }`,
+		Variables: map[string]any{"input": input},
+	})
+	if err != nil {
+		return "", fmt.Errorf("stash: starting %s: %w", mutation, err)
+	}
+	var result map[string]string
+	if err := json.Unmarshal(data, &result); err != nil {
+		return "", fmt.Errorf("stash: decoding %s job id: %w", mutation, err)
+	}
+	return result[mutation], nil
 }

@@ -196,3 +196,146 @@ func TestMetadataScanSurfacesServerError(t *testing.T) {
 		t.Errorf("error = %v, want it to carry the server's message", err)
 	}
 }
+
+func generateInput(t *testing.T, req graphqlRequest) map[string]any {
+	t.Helper()
+	b, err := json.Marshal(req.Variables["input"])
+	if err != nil {
+		t.Fatalf("marshalling input: %v", err)
+	}
+	var out map[string]any
+	if err := json.Unmarshal(b, &out); err != nil {
+		t.Fatalf("decoding input: %v", err)
+	}
+	return out
+}
+
+// The same reason MetadataScan generates nothing by default: a generate
+// across a library is hours of work and gigabytes of output.
+func TestMetadataGenerateProducesNothingByDefault(t *testing.T) {
+	cap := &capture{}
+	srv := httptest.NewServer(cap.handler(`{"data":{"metadataGenerate":"12"}}`))
+	defer srv.Close()
+
+	id, err := NewClient(srv.URL).MetadataGenerate(context.Background(), GenerateOptions{})
+	if err != nil {
+		t.Fatalf("MetadataGenerate: %v", err)
+	}
+	if id != "12" {
+		t.Errorf("job id = %q", id)
+	}
+	in := generateInput(t, cap.reqs[0])
+	for _, flag := range []string{"covers", "sprites", "phashes", "previews", "transcodes", "overwrite"} {
+		if v, ok := in[flag]; !ok || v != false {
+			t.Errorf("%s = %v (present=%v), want false", flag, v, ok)
+		}
+	}
+}
+
+// An empty list is not the same request as no list — Stash reads the second
+// as "the whole library".
+func TestMetadataGenerateOmitsEmptyScopes(t *testing.T) {
+	cap := &capture{}
+	srv := httptest.NewServer(cap.handler(`{"data":{"metadataGenerate":"1"}}`))
+	defer srv.Close()
+
+	if _, err := NewClient(srv.URL).MetadataGenerate(context.Background(),
+		GenerateOptions{Sprites: true}); err != nil {
+		t.Fatalf("MetadataGenerate: %v", err)
+	}
+	in := generateInput(t, cap.reqs[0])
+	if _, ok := in["sceneIDs"]; ok {
+		t.Error("sceneIDs was sent empty")
+	}
+	if _, ok := in["paths"]; ok {
+		t.Error("paths was sent empty")
+	}
+	if in["sprites"] != true {
+		t.Errorf("sprites = %v", in["sprites"])
+	}
+}
+
+func TestMetadataGenerateScopedToScenes(t *testing.T) {
+	cap := &capture{}
+	srv := httptest.NewServer(cap.handler(`{"data":{"metadataGenerate":"1"}}`))
+	defer srv.Close()
+
+	if _, err := NewClient(srv.URL).MetadataGenerate(context.Background(),
+		GenerateOptions{Phashes: true, SceneIDs: []string{"1", "2"}}); err != nil {
+		t.Fatalf("MetadataGenerate: %v", err)
+	}
+	ids, _ := generateInput(t, cap.reqs[0])["sceneIDs"].([]any)
+	if len(ids) != 2 {
+		t.Errorf("sceneIDs = %v", ids)
+	}
+}
+
+// An endpoint is a stash-box; anything else is a scraper id, and sending one
+// as the other silently identifies against nothing.
+func TestMetadataIdentifySortsSourcesByShape(t *testing.T) {
+	cap := &capture{}
+	srv := httptest.NewServer(cap.handler(`{"data":{"metadataIdentify":"3"}}`))
+	defer srv.Close()
+
+	if _, err := NewClient(srv.URL).MetadataIdentify(context.Background(),
+		IdentifyOptions{Sources: []string{"https://example.test/graphql", "builtin_scraper"}}); err != nil {
+		t.Fatalf("MetadataIdentify: %v", err)
+	}
+	b, _ := json.Marshal(generateInput(t, cap.reqs[0])["sources"])
+	if !strings.Contains(string(b), "stash_box_endpoint") {
+		t.Errorf("sources = %s, want the endpoint recognised", b)
+	}
+	if !strings.Contains(string(b), "scraper_id") {
+		t.Errorf("sources = %s, want the scraper recognised", b)
+	}
+}
+
+// Clean deletes the records of files it cannot find, and an unmounted drive
+// looks exactly like a library whose files were all deleted.
+func TestMetadataCleanCarriesDryRun(t *testing.T) {
+	cap := &capture{}
+	srv := httptest.NewServer(cap.handler(`{"data":{"metadataClean":"4"}}`))
+	defer srv.Close()
+
+	if _, err := NewClient(srv.URL).MetadataClean(context.Background(),
+		CleanOptions{DryRun: true}); err != nil {
+		t.Fatalf("MetadataClean: %v", err)
+	}
+	if got := generateInput(t, cap.reqs[0])["dryRun"]; got != true {
+		t.Errorf("dryRun = %v", got)
+	}
+}
+
+// Auto-tag with nothing to match against is a job that does nothing, and
+// starting one is not what the caller meant.
+func TestMetadataAutoTagRefusesAnEmptyRequest(t *testing.T) {
+	_, c := server(t, reply(`{"data":{"metadataAutoTag":"1"}}`))
+	if _, err := c.MetadataAutoTag(context.Background(), AutoTagOptions{}); err == nil {
+		t.Error("want an error when there is nothing to match against")
+	}
+}
+
+func TestStopJob(t *testing.T) {
+	cap := &capture{}
+	srv := httptest.NewServer(cap.handler(`{"data":{"stopJob":true}}`))
+	defer srv.Close()
+	c := NewClient(srv.URL)
+
+	if err := c.StopJob(context.Background(), "7"); err != nil {
+		t.Fatalf("StopJob: %v", err)
+	}
+	if got := cap.reqs[0].Variables["id"]; got != "7" {
+		t.Errorf("id = %v", got)
+	}
+	if err := c.StopJob(context.Background(), ""); err == nil {
+		t.Error("want an error without a job id")
+	}
+}
+
+func TestOptimiseDatabaseReturnsAJobID(t *testing.T) {
+	_, c := server(t, reply(`{"data":{"optimiseDatabase":"9"}}`))
+	id, err := c.OptimiseDatabase(context.Background())
+	if err != nil || id != "9" {
+		t.Errorf("got (%q, %v)", id, err)
+	}
+}
