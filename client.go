@@ -39,6 +39,8 @@ var (
 	ErrPerformerNotFound = errors.New("stash: no such performer")
 	// ErrStudioNotFound means no studio has the requested name.
 	ErrStudioNotFound = errors.New("stash: no such studio")
+	// ErrTagNotFound means no tag has the requested name.
+	ErrTagNotFound = errors.New("stash: no such tag")
 )
 
 // GraphQLError is one entry from a GraphQL `errors` array.

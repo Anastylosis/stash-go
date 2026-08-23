@@ -353,3 +353,42 @@ func TestSceneFilterDateBounds(t *testing.T) {
 		}
 	}
 }
+
+func TestSceneFilterTagNames(t *testing.T) {
+	cap := &capture{}
+	srv := httptest.NewServer(cap.handler(
+		`{"data":{"findTags":{"tags":[{"id":"9"}]}}}`,
+		`{"data":{"findScenes":{"count":0,"scenes":[]}}}`))
+	defer srv.Close()
+
+	if _, _, err := NewClient(srv.URL).FindScenes(context.Background(),
+		SceneFilter{ExcludeTagNames: []string{"date_from_scene"}}, 1, 10); err != nil {
+		t.Fatalf("FindScenes: %v", err)
+	}
+	b, _ := json.Marshal(cap.reqs[1].Variables["scene_filter"])
+	if !strings.Contains(string(b), "EXCLUDES") || !strings.Contains(string(b), `"9"`) {
+		t.Errorf("filter = %s", b)
+	}
+}
+
+// A tag name nothing carries is a typo, and Stash answers a typo with an
+// empty result set — indistinguishable from a filter that legitimately
+// matched nothing.
+func TestSceneFilterUnknownTagIsAnError(t *testing.T) {
+	_, c := server(t, reply(`{"data":{"findTags":{"tags":[]}}}`))
+	_, _, err := c.FindScenes(context.Background(), SceneFilter{TagNames: []string{"nope"}}, 1, 10)
+	if !errors.Is(err, ErrTagNotFound) {
+		t.Fatalf("err = %v, want ErrTagNotFound", err)
+	}
+}
+
+// Stash takes one tags criterion, so sending both would silently keep only
+// the second.
+func TestSceneFilterRefusesBothTagDirections(t *testing.T) {
+	_, c := server(t, reply(`{"data":{}}`))
+	_, _, err := c.FindScenes(context.Background(), SceneFilter{
+		TagNames: []string{"a"}, ExcludeTagNames: []string{"b"}}, 1, 10)
+	if err == nil {
+		t.Fatal("want an error when both tag filters are set")
+	}
+}

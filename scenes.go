@@ -3,6 +3,7 @@ package stash
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 )
 
@@ -166,6 +167,39 @@ func (c *Client) FindScenes(ctx context.Context, filter SceneFilter, page, perPa
 		sceneFilter["studios"] = map[string]any{
 			"value":    []string{id},
 			"modifier": "INCLUDES_ALL",
+			"depth":    0,
+		}
+	}
+
+	// Stash takes one tags criterion, so "has these" and "has none of
+	// these" cannot both be sent — the second would overwrite the first.
+	if len(filter.TagNames) > 0 && len(filter.ExcludeTagNames) > 0 {
+		return nil, 0, errors.New("stash: TagNames and ExcludeTagNames cannot both be set")
+	}
+	for _, tags := range []struct {
+		names    []string
+		modifier string
+	}{
+		{filter.TagNames, "INCLUDES_ALL"},
+		{filter.ExcludeTagNames, "EXCLUDES"},
+	} {
+		if len(tags.names) == 0 {
+			continue
+		}
+		ids := make([]string, 0, len(tags.names))
+		for _, name := range tags.names {
+			id, found, err := c.FindTag(ctx, name)
+			if err != nil {
+				return nil, 0, fmt.Errorf("stash: resolving tag %q: %w", name, err)
+			}
+			if !found {
+				return nil, 0, fmt.Errorf("%w: %q", ErrTagNotFound, name)
+			}
+			ids = append(ids, id)
+		}
+		sceneFilter["tags"] = map[string]any{
+			"value":    ids,
+			"modifier": tags.modifier,
 			"depth":    0,
 		}
 	}

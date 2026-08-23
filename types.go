@@ -170,6 +170,13 @@ type SceneFilter struct {
 	// Nil means "either".
 	HasDate *bool `json:"-"`
 
+	// TagNames selects scenes carrying every one of these tags, and
+	// ExcludeTagNames scenes carrying none of them. Both are resolved to
+	// ids first, and a name no tag has is an error rather than an empty
+	// result — the same reason [ErrPerformerNotFound] exists.
+	TagNames        []string `json:"-"`
+	ExcludeTagNames []string `json:"-"`
+
 	// DateBefore and DateAfter bound the date, exclusive at both ends, in
 	// Stash's own "2006-01-02" notation. A scene with no date matches
 	// neither: an absent date is not an early one.
