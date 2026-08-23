@@ -298,6 +298,58 @@ are about to write means a field you do not use cannot break you.
 Custom JavaScript runs in every browser that opens that Stash. Read it before
 writing it, and keep what is there.
 
+## Performers, and where their details come from
+
+`EnsurePerformer` takes a name. `CreatePerformerFrom` takes everything Stash
+will store about one, and omits what it was not given — an empty field is not
+the same as an absent one, and sending `birthdate: ""` stores an empty
+birthdate.
+
+```go
+id, err := c.CreatePerformerFrom(ctx, stash.PerformerInput{
+    Name:     "Example Performer",
+    Gender:   "FEMALE",
+    HeightCM: 167,
+    Image:    "https://example.test/images/1",
+    StashIDs: []stash.StashID{{Endpoint: endpoint, ID: "abc-123"}},
+})
+```
+
+`Image` may be a URL or a `data:` URI. Given a URL, the *server* fetches it,
+so one only the calling machine can reach will not work.
+
+### Find by stash id, not by name
+
+```go
+id, found, err := c.FindPerformerByStashID(ctx, endpoint, "abc-123")
+```
+
+`FindPerformer` matches a name, and a name is neither unique nor stable — two
+performers share one, one performer changes theirs, a scraper writes it with
+different punctuation. A stash-box id is the same string forever, which makes
+it the check worth making before creating anything.
+
+### Scraping a stash-box
+
+```go
+boxes, err := c.StashBoxes(ctx)
+found, err := c.ScrapePerformers(ctx, boxes[0].Endpoint, "abc-123")
+id, err := c.CreatePerformerFrom(ctx, found[0].Input(boxes[0].Endpoint))
+```
+
+The server does the scraping, with the API key configured for that stash-box;
+one with no key returns nothing rather than an error. `StashBox` deliberately
+does not carry that key — it is the server's credential for a third party, and
+a field for it is an invitation to log one.
+
+`query` is matched against names, so a name returns everything close to it and
+a caller picking the first result picks wrong. **Passing a stash id returns
+the one performer it belongs to**, which is the reliable way to use this.
+
+`Input` does the converting: heights and weights arrive as strings and
+sometimes with a unit attached, aliases arrive comma-separated where the input
+wants a list, and the first image is the one to keep.
+
 ## Older servers
 
 Stash 0.20 or newer is required: the shared selection set asks for the
