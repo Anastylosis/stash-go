@@ -72,6 +72,9 @@ type ScrapedPerformer struct {
 	// RemoteSiteID is the performer's id at the source. For a stash-box that
 	// is the stash id, which is what makes the result worth keeping.
 	RemoteSiteID string `json:"remote_site_id"`
+	// StoredID is set when Stash already has this performer, which saves
+	// creating a second one under a name that differs by punctuation.
+	StoredID string `json:"stored_id"`
 }
 
 // ScrapePerformers searches a stash-box through the server and returns what it
@@ -96,7 +99,7 @@ func (c *Client) ScrapePerformers(ctx context.Context, endpoint, query string) (
 				name disambiguation gender birthdate death_date country ethnicity
 				eye_color hair_color height weight measurements fake_tits
 				career_length tattoos piercings details urls aliases images
-				remote_site_id } }`,
+				remote_site_id stored_id } }`,
 		Variables: map[string]any{
 			"source": map[string]any{"stash_box_endpoint": endpoint},
 			"input":  map[string]any{"query": query},
@@ -112,6 +115,95 @@ func (c *Client) ScrapePerformers(ctx context.Context, endpoint, query string) (
 		return nil, fmt.Errorf("stash: decoding scraped performer: %w", err)
 	}
 	return result.ScrapeSinglePerformer, nil
+}
+
+// ScrapedScene is a scene as a stash-box describes one.
+type ScrapedScene struct {
+	Title    string   `json:"title"`
+	Code     string   `json:"code"`
+	Date     string   `json:"date"`
+	Details  string   `json:"details"`
+	Director string   `json:"director"`
+	URLs     []string `json:"urls"`
+	// Image is a URL to the scene's cover.
+	Image string `json:"image"`
+	// Duration is in seconds, and is the check worth making before
+	// believing a match: two scenes with the same code and wildly different
+	// lengths are not the same scene.
+	Duration int `json:"duration"`
+	// RemoteSiteID is the scene's stash id.
+	RemoteSiteID string             `json:"remote_site_id"`
+	Studio       *ScrapedStudio     `json:"studio"`
+	Performers   []ScrapedPerformer `json:"performers"`
+	Tags         []ScrapedTag       `json:"tags"`
+}
+
+// ScrapedStudio is a studio as a scraper describes one. StoredID is set when
+// Stash already has it, which saves looking it up by a name that may differ.
+type ScrapedStudio struct {
+	Name         string `json:"name"`
+	StoredID     string `json:"stored_id"`
+	RemoteSiteID string `json:"remote_site_id"`
+	URL          string `json:"url"`
+}
+
+// ScrapedTag is a tag as a scraper describes one.
+type ScrapedTag struct {
+	Name     string `json:"name"`
+	StoredID string `json:"stored_id"`
+}
+
+// ScrapeScenes searches a stash-box for scenes through the server.
+//
+// Passing a scene id Stash already knows — see [Client.ScrapeSceneByID] —
+// matches on the file's fingerprints, which is exact. A text query matches on
+// whatever the stash-box searches, so it returns near-misses too: check
+// something about each result before believing it, because "one result" is
+// not the same as "the right one".
+func (c *Client) ScrapeScenes(ctx context.Context, endpoint, query string) ([]ScrapedScene, error) {
+	if endpoint == "" || query == "" {
+		return nil, fmt.Errorf("stash: scraping scene: endpoint and query are both required")
+	}
+	return c.scrapeScenes(ctx, endpoint, map[string]any{"query": query}, query)
+}
+
+// ScrapeSceneByID asks a stash-box about a scene Stash already has, matched
+// on the file's fingerprints rather than on any text.
+//
+// An empty result is the ordinary answer for a library the stash-box does not
+// cover, not a failure.
+func (c *Client) ScrapeSceneByID(ctx context.Context, endpoint, sceneID string) ([]ScrapedScene, error) {
+	if endpoint == "" || sceneID == "" {
+		return nil, fmt.Errorf("stash: scraping scene: endpoint and scene id are both required")
+	}
+	return c.scrapeScenes(ctx, endpoint, map[string]any{"scene_id": sceneID}, sceneID)
+}
+
+const scrapedSceneFields = `
+	title code date details director urls image duration remote_site_id
+	studio { name stored_id remote_site_id url }
+	performers { name gender remote_site_id stored_id images country birthdate }
+	tags { name stored_id }`
+
+func (c *Client) scrapeScenes(ctx context.Context, endpoint string, input map[string]any, what string) ([]ScrapedScene, error) {
+	data, err := c.do(ctx, graphqlRequest{
+		Query: `query($source: ScraperSourceInput!, $input: ScrapeSingleSceneInput!) {
+			scrapeSingleScene(source: $source, input: $input) {` + scrapedSceneFields + `} }`,
+		Variables: map[string]any{
+			"source": map[string]any{"stash_box_endpoint": endpoint},
+			"input":  input,
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("stash: scraping scene %q: %w", what, err)
+	}
+	var result struct {
+		ScrapeSingleScene []ScrapedScene `json:"scrapeSingleScene"`
+	}
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, fmt.Errorf("stash: decoding scraped scene: %w", err)
+	}
+	return result.ScrapeSingleScene, nil
 }
 
 // Input converts a scraped performer into something [Client.CreatePerformerFrom]
