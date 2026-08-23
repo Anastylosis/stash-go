@@ -88,10 +88,25 @@ type Fingerprint struct {
 	Value string `json:"value"`
 }
 
-// Tag attached to a scene.
+// Tag attached to a scene, and as the tag queries return one.
+//
+// A tag reached through a scene carries only ID and Name — the shared scene
+// selection asks for no more.
 type Tag struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
+
+	SortName    string    `json:"sort_name"`
+	Description string    `json:"description"`
+	Aliases     []string  `json:"aliases"`
+	Favorite    bool      `json:"favorite"`
+	ImagePath   string    `json:"image_path"`
+	SceneCount  int       `json:"scene_count"`
+	StashIDs    []StashID `json:"stash_ids"`
+	// Parents and Children are one level deep: a hierarchy queried in full
+	// would carry the whole tree on every tag in it.
+	Parents  []Tag `json:"parents"`
+	Children []Tag `json:"children"`
 }
 
 // Performer attached to a scene.
@@ -132,12 +147,6 @@ type Performer struct {
 	SceneCount  int       `json:"scene_count"`
 	Tags        []Tag     `json:"tags"`
 	StashIDs    []StashID `json:"stash_ids"`
-}
-
-// Studio a scene belongs to.
-type Studio struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
 }
 
 // Gallery attached to a scene.

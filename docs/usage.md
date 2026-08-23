@@ -240,6 +240,38 @@ Stash does not delete the temporary file it served the download from — it
 clears that directory on restart — so backing up on a schedule leaves copies
 on the server's temp volume.
 
+## Studios and tags
+
+The same shape as performers: a full record from the dedicated queries, a
+partial update that only sends what you set, a separate call to empty a field,
+and a merge for the duplicates every library grows.
+
+```go
+studio, found, err := c.FindStudioByID(ctx, id)
+err = c.UpdateStudio(ctx, stash.StudioInput{ID: id, Details: "corrected"})
+err = c.ClearStudioFields(ctx, id, "aliases")
+
+tag, found, err := c.FindTagByID(ctx, id)
+err = c.MergeTags(ctx, keepID, []string{foldedAwayID}, nil)
+```
+
+A studio or tag reached **through a scene** carries only `ID` and `Name`: the
+shared scene selection asks for no more, because a page of scenes should not
+drag a full record along for each one. The queries above fill the rest in.
+
+`Parents` and `Children` on a tag, and `ParentStudio` on a studio, are one
+level deep. A hierarchy queried in full would carry the whole tree on every
+member of it.
+
+`MergeTags` moves everything the sources were on to the destination and
+deletes them. The fourth argument is applied to the destination as part of the
+merge — the place to keep a source's better name, since afterwards there is
+nothing to copy from. Not reversible.
+
+`Aliases`, `URLs`, `TagIDs`, `ParentIDs` and `ChildIDs` **replace** what is
+stored rather than adding to it. Read first and send the union if adding is
+what you meant.
+
 ## Tasks
 
 Every task is a background job and returns an id for `FindJob`.
