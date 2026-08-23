@@ -520,3 +520,12 @@ func TestLiveGeneralConfig(t *testing.T) {
 		t.Error("GeneralConfig accepted something that is not a field name")
 	}
 }
+
+func TestLiveDLNAStatus(t *testing.T) {
+	got, err := client(t).DLNAStatus(context.Background())
+	if err != nil {
+		t.Fatalf("DLNAStatus: %v", err)
+	}
+	t.Logf("DLNA running=%v, %d recent addresses, %d temporary grants",
+		got.Running, len(got.RecentIPAddresses), len(got.AllowedIPAddresses))
+}

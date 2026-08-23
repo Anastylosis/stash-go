@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 // call is one client method reduced to "did it report a problem".
@@ -234,6 +235,11 @@ func everyCall() []call {
 			return err
 		}},
 		{name: "DownloadFFMpeg", run: func(ctx context.Context, c *Client) error { _, err := c.DownloadFFMpeg(ctx); return err }},
+		{name: "DLNAStatus", run: func(ctx context.Context, c *Client) error { _, err := c.DLNAStatus(ctx); return err }},
+		{name: "EnableDLNA", run: func(ctx context.Context, c *Client) error { return c.EnableDLNA(ctx, time.Hour) }},
+		{name: "DisableDLNA", run: func(ctx context.Context, c *Client) error { return c.DisableDLNA(ctx, 0) }},
+		{name: "AllowDLNAIP", run: func(ctx context.Context, c *Client) error { return c.AllowDLNAIP(ctx, "192.168.1.20", 0) }},
+		{name: "DisallowDLNAIP", run: func(ctx context.Context, c *Client) error { return c.DisallowDLNAIP(ctx, "192.168.1.20") }},
 	}
 }
 
