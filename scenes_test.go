@@ -305,3 +305,51 @@ func ExampleClient_FindAllScenes() {
 	}
 	fmt.Println(len(scenes))
 }
+
+func TestSceneFilterHasDate(t *testing.T) {
+	for _, want := range []struct {
+		has      bool
+		modifier string
+	}{{true, "NOT_NULL"}, {false, "IS_NULL"}} {
+		cap := &capture{}
+		srv := httptest.NewServer(cap.handler(`{"data":{"findScenes":{"count":0,"scenes":[]}}}`))
+		if _, _, err := NewClient(srv.URL).FindScenes(context.Background(),
+			SceneFilter{HasDate: &want.has}, 1, 10); err != nil {
+			t.Fatalf("FindScenes: %v", err)
+		}
+		srv.Close()
+		b, _ := json.Marshal(cap.reqs[0].Variables["scene_filter"])
+		if !strings.Contains(string(b), want.modifier) {
+			t.Errorf("HasDate=%v sent %s, want %s", want.has, b, want.modifier)
+		}
+		// Stash declares value non-null even where the modifier ignores it,
+		// and rejects the whole query when it is missing.
+		if !strings.Contains(string(b), `"value"`) {
+			t.Errorf("HasDate=%v sent %s, want a value alongside the modifier", want.has, b)
+		}
+	}
+}
+
+// Stash takes one date criterion, so two bounds have to become one range —
+// sending them as two filters would silently keep only the last.
+func TestSceneFilterDateBounds(t *testing.T) {
+	for _, tc := range []struct {
+		filter   SceneFilter
+		modifier string
+	}{
+		{SceneFilter{DateAfter: "2009-01-01"}, "GREATER_THAN"},
+		{SceneFilter{DateBefore: "2010-01-01"}, "LESS_THAN"},
+		{SceneFilter{DateAfter: "2009-01-01", DateBefore: "2010-01-01"}, "BETWEEN"},
+	} {
+		cap := &capture{}
+		srv := httptest.NewServer(cap.handler(`{"data":{"findScenes":{"count":0,"scenes":[]}}}`))
+		if _, _, err := NewClient(srv.URL).FindScenes(context.Background(), tc.filter, 1, 10); err != nil {
+			t.Fatalf("FindScenes: %v", err)
+		}
+		srv.Close()
+		b, _ := json.Marshal(cap.reqs[0].Variables["scene_filter"])
+		if !strings.Contains(string(b), tc.modifier) {
+			t.Errorf("%+v sent %s, want %s", tc.filter, b, tc.modifier)
+		}
+	}
+}

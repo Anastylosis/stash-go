@@ -170,6 +170,39 @@ func (c *Client) FindScenes(ctx context.Context, filter SceneFilter, page, perPa
 		}
 	}
 
+	if filter.HasDate != nil {
+		modifier := "IS_NULL"
+		if *filter.HasDate {
+			modifier = "NOT_NULL"
+		}
+		// value is required even where the modifier ignores it: Stash's
+		// DateCriterionInput declares it non-null, and omitting it fails
+		// the query rather than defaulting.
+		sceneFilter["date"] = map[string]any{"modifier": modifier, "value": ""}
+	}
+
+	// Stash takes one date criterion, so the two bounds become a range
+	// rather than two filters — asking for both separately would silently
+	// keep only the last.
+	switch {
+	case filter.DateAfter != "" && filter.DateBefore != "":
+		sceneFilter["date"] = map[string]any{
+			"value":    filter.DateAfter,
+			"value2":   filter.DateBefore,
+			"modifier": "BETWEEN",
+		}
+	case filter.DateAfter != "":
+		sceneFilter["date"] = map[string]any{
+			"value":    filter.DateAfter,
+			"modifier": "GREATER_THAN",
+		}
+	case filter.DateBefore != "":
+		sceneFilter["date"] = map[string]any{
+			"value":    filter.DateBefore,
+			"modifier": "LESS_THAN",
+		}
+	}
+
 	if filter.PathContains != "" {
 		sceneFilter["path"] = map[string]any{
 			"value":    filter.PathContains,

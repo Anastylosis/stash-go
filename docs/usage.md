@@ -77,6 +77,21 @@ nil for a scene with no files. `Fingerprint` looks up a hash by type
 A scene has more than one file when Stash has attached re-detected duplicates
 to it, which is the case deduplication tools care about.
 
+### Filtering by date
+
+```go
+has := false
+undated, _, err := c.FindScenes(ctx, stash.SceneFilter{HasDate: &has}, 1, 100)
+
+recent, _, err := c.FindScenes(ctx,
+    stash.SceneFilter{DateAfter: "2009-01-01", DateBefore: "2010-01-01"}, 1, 100)
+```
+
+`DateBefore` and `DateAfter` are exclusive at both ends, and combine into one
+range — Stash takes a single date criterion, so sending them as two filters
+would silently keep only the last. A scene with no date matches neither bound:
+an absent date is not an early one.
+
 ### Filtering
 
 ```go
@@ -224,6 +239,20 @@ part of the file either way. It matters where blobs live on the filesystem.
 Stash does not delete the temporary file it served the download from — it
 clears that directory on restart — so backing up on a schedule leaves copies
 on the server's temp volume.
+
+## Adding tags without replacing them
+
+`SceneUpdate.TagIDs` **replaces** a scene's tags. Adding one through it means
+reading the current list, appending and writing it back — which drops any tag
+added in between, and drops all of them if the read is skipped.
+
+```go
+err := c.AddSceneTags(ctx, []string{tagID}, sceneIDs...)
+```
+
+Stash's bulk update takes an ADD mode instead, applied to every scene named in
+one request. `RemoveSceneTags` is the same the other way; removing a tag a
+scene does not have is not an error.
 
 ## Media the API will not hand over
 

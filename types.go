@@ -165,4 +165,14 @@ type SceneFilter struct {
 
 	// PathContains matches scenes whose file path contains this substring.
 	PathContains string `json:"-"`
+
+	// HasDate selects scenes that do (true) or do not (false) carry a date.
+	// Nil means "either".
+	HasDate *bool `json:"-"`
+
+	// DateBefore and DateAfter bound the date, exclusive at both ends, in
+	// Stash's own "2006-01-02" notation. A scene with no date matches
+	// neither: an absent date is not an early one.
+	DateBefore string `json:"-"`
+	DateAfter  string `json:"-"`
 }
