@@ -164,6 +164,10 @@ func everyCall() []call {
 			_, _, err := c.FindScenesByPathRegex(ctx, "a", 1, 10)
 			return err
 		}},
+		{name: "StashBoxBatchTag", run: func(ctx context.Context, c *Client) error {
+			_, err := c.StashBoxBatchTag(ctx, BatchTagTags, BatchTagOptions{Endpoint: "https://x.test/graphql"})
+			return err
+		}},
 		{name: "StashBoxes", run: func(ctx context.Context, c *Client) error { _, err := c.StashBoxes(ctx); return err }},
 		{name: "StashBoxConfigs", run: func(ctx context.Context, c *Client) error { _, err := c.StashBoxConfigs(ctx); return err }},
 		{name: "SetStashBoxes", run: func(ctx context.Context, c *Client) error {
