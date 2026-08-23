@@ -173,12 +173,24 @@ Without a reachable server the whole suite skips.
 
 ## Status
 
-Early. The surface covers scenes with their files and captions, the
-tag/performer/studio entities that metadata pushes need, plugin settings, the
-scan/job pair, database backup, the media routes and scene paths, performers
-with stash-box details behind them, and the plugin and package surface. Operations
-for deduplication work — merging scenes, moving and deleting files — are next;
-`Execute` covers them meanwhile.
+Early, and growing towards covering what the Stash API offers rather than
+what any one program needs from it.
+
+Wrapped so far: scenes with their files and captions, the tag/performer/studio
+entities that metadata pushes need, performers with the stash-box details
+behind them, scene media paths and the routes that serve them, saved filters,
+plugin settings, the plugin package manager, interface configuration, database
+backup, and the scan/job pair.
+
+Not wrapped yet, roughly in the order they are likely to matter: submitting
+drafts and fingerprints to a stash-box, merging and destroying scenes, moving
+and deleting files, the generate/identify/clean tasks, stopping a running job,
+and updating or merging performers, studios and tags. Galleries, images,
+groups, markers and DLNA are untouched. `querySQL` and `execSQL` are
+deliberately left out — a client that hands you arbitrary SQL against
+someone's library is a footgun, and `Execute` already covers the escape hatch.
+
+`Execute` reaches all of it meanwhile.
 
 `MetadataScan`, the backup calls and the package mutations are what the live
 suite leaves alone, because it is read-only by contract and all of them write
