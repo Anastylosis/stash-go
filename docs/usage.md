@@ -240,6 +240,38 @@ Stash does not delete the temporary file it served the download from — it
 clears that directory on restart — so backing up on a schedule leaves copies
 on the server's temp volume.
 
+## Saved filters
+
+A saved filter is what appears in Stash's sidebar, and its criteria are **not
+written the way a query's are**. Stash accepts the query notation, stores it,
+and the filter then does nothing in the UI:
+
+```
+query:  "date": {"modifier": "NOT_NULL", "value": ""}
+saved:  "date": {"modifier": "NOT_NULL", "value": {"value": ""}}
+
+query:  "tags": {"modifier": "EXCLUDES", "value": ["4"], "depth": 0}
+saved:  "tags": {"modifier": "EXCLUDES",
+                 "value": {"depth": 0, "items": [{"id": 4, "label": "HD%20Available"}]}}
+```
+
+Booleans are stringly typed there too — `organized` is the string `"false"`.
+`SaveSceneFilter` writes the second notation from the same [SceneFilter] that
+queries with the first, so the filter is described once:
+
+```go
+id, err := c.SaveSceneFilter(ctx, "Made before 2010",
+    stash.SceneFilter{DateBefore: "2010-01-01"},
+    &stash.FindFilter{Sort: "date", Direction: "ASC", PerPage: 100})
+```
+
+Saving under a name that already exists updates that filter rather than adding
+a second of the same name, and carries its `ui_options` across — Stash allows
+the duplicate, and a program run twice should not leave two identical entries
+in someone's sidebar.
+
+`SavedFilters`, `FindSavedFilter` and `DestroySavedFilter` are the rest.
+
 ## Adding tags without replacing them
 
 `SceneUpdate.TagIDs` **replaces** a scene's tags. Adding one through it means

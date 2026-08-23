@@ -41,6 +41,11 @@ var (
 	ErrStudioNotFound = errors.New("stash: no such studio")
 	// ErrTagNotFound means no tag has the requested name.
 	ErrTagNotFound = errors.New("stash: no such tag")
+
+	// errTwoTagFilters is the one filter combination Stash cannot express:
+	// it takes a single tags criterion, so asking for both directions would
+	// silently keep only one.
+	errTwoTagFilters = errors.New("stash: TagNames and ExcludeTagNames cannot both be set")
 )
 
 // GraphQLError is one entry from a GraphQL `errors` array.

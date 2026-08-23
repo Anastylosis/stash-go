@@ -3,7 +3,6 @@ package stash
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 )
 
@@ -120,14 +119,14 @@ query FindScenes($filter: FindFilterType, $scene_filter: SceneFilterType) {
 // A filter naming a performer or studio that does not exist returns
 // [ErrPerformerNotFound] or [ErrStudioNotFound] rather than an empty page —
 // otherwise a typo is indistinguishable from a genuine zero-result query.
-func (c *Client) FindScenes(ctx context.Context, filter SceneFilter, page, perPage int) ([]Scene, int, error) {
+// SceneFilterCriteria renders a [SceneFilter] as the criterion map Stash
+// speaks, resolving performer, studio and tag names to ids on the way.
+//
+// Exported because it is what a saved filter stores: the same filter that
+// selects scenes here can be handed to [Client.SaveSceneFilter] and appear in
+// the UI, rather than being described twice in two notations.
+func (c *Client) SceneFilterCriteria(ctx context.Context, filter SceneFilter) (map[string]any, error) {
 	sceneFilter := map[string]any{}
-	findFilter := map[string]any{
-		"page":      page,
-		"per_page":  perPage,
-		"sort":      "path",
-		"direction": "ASC",
-	}
 
 	if filter.Organized != nil {
 		sceneFilter["organized"] = *filter.Organized
@@ -144,10 +143,10 @@ func (c *Client) FindScenes(ctx context.Context, filter SceneFilter, page, perPa
 	if filter.PerformerName != "" {
 		id, found, err := c.FindPerformer(ctx, filter.PerformerName)
 		if err != nil {
-			return nil, 0, fmt.Errorf("stash: resolving performer %q: %w", filter.PerformerName, err)
+			return nil, fmt.Errorf("stash: resolving performer %q: %w", filter.PerformerName, err)
 		}
 		if !found {
-			return nil, 0, fmt.Errorf("%w: %q", ErrPerformerNotFound, filter.PerformerName)
+			return nil, fmt.Errorf("%w: %q", ErrPerformerNotFound, filter.PerformerName)
 		}
 		sceneFilter["performers"] = map[string]any{
 			"value":    []string{id},
@@ -158,10 +157,10 @@ func (c *Client) FindScenes(ctx context.Context, filter SceneFilter, page, perPa
 	if filter.StudioName != "" {
 		id, found, err := c.FindStudio(ctx, filter.StudioName)
 		if err != nil {
-			return nil, 0, fmt.Errorf("stash: resolving studio %q: %w", filter.StudioName, err)
+			return nil, fmt.Errorf("stash: resolving studio %q: %w", filter.StudioName, err)
 		}
 		if !found {
-			return nil, 0, fmt.Errorf("%w: %q", ErrStudioNotFound, filter.StudioName)
+			return nil, fmt.Errorf("%w: %q", ErrStudioNotFound, filter.StudioName)
 		}
 		// depth 0: this studio only, not its children.
 		sceneFilter["studios"] = map[string]any{
@@ -174,7 +173,7 @@ func (c *Client) FindScenes(ctx context.Context, filter SceneFilter, page, perPa
 	// Stash takes one tags criterion, so "has these" and "has none of
 	// these" cannot both be sent — the second would overwrite the first.
 	if len(filter.TagNames) > 0 && len(filter.ExcludeTagNames) > 0 {
-		return nil, 0, errors.New("stash: TagNames and ExcludeTagNames cannot both be set")
+		return nil, errTwoTagFilters
 	}
 	for _, tags := range []struct {
 		names    []string
@@ -190,10 +189,10 @@ func (c *Client) FindScenes(ctx context.Context, filter SceneFilter, page, perPa
 		for _, name := range tags.names {
 			id, found, err := c.FindTag(ctx, name)
 			if err != nil {
-				return nil, 0, fmt.Errorf("stash: resolving tag %q: %w", name, err)
+				return nil, fmt.Errorf("stash: resolving tag %q: %w", name, err)
 			}
 			if !found {
-				return nil, 0, fmt.Errorf("%w: %q", ErrTagNotFound, name)
+				return nil, fmt.Errorf("%w: %q", ErrTagNotFound, name)
 			}
 			ids = append(ids, id)
 		}
@@ -242,6 +241,21 @@ func (c *Client) FindScenes(ctx context.Context, filter SceneFilter, page, perPa
 			"value":    filter.PathContains,
 			"modifier": "INCLUDES",
 		}
+	}
+
+	return sceneFilter, nil
+}
+
+func (c *Client) FindScenes(ctx context.Context, filter SceneFilter, page, perPage int) ([]Scene, int, error) {
+	sceneFilter, err := c.SceneFilterCriteria(ctx, filter)
+	if err != nil {
+		return nil, 0, err
+	}
+	findFilter := map[string]any{
+		"page":      page,
+		"per_page":  perPage,
+		"sort":      "path",
+		"direction": "ASC",
 	}
 
 	vars := map[string]any{"filter": findFilter}

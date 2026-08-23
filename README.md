@@ -52,6 +52,11 @@ scenes, err := c.FindAllScenes(ctx, stash.SceneFilter{StudioName: "Example"}, ni
   collide and change while a stash-box id does not. `ScrapePerformers` fills
   the details in from a stash-box, and converts what it finds into what the
   create call wants.
+- **Saved filters, in the notation they are actually stored in.** A saved
+  filter writes its criteria differently from a query — `"value": {"value": …}`,
+  tags as labelled items, booleans as strings — and Stash accepts the query
+  notation, stores it, and shows a filter that does nothing. `SaveSceneFilter`
+  takes the same `SceneFilter` you query with and writes the other one.
 - **Stash-box scraping, for scenes as well as performers.** By fingerprint,
   which is exact, or by text, which is not — and the doc says which is which.
 - **Tags and performers that add rather than replace.** `SceneUpdate.TagIDs` overwrites a

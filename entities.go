@@ -135,3 +135,9 @@ func firstID(data json.RawMessage, query, listField string) (string, bool, error
 	}
 	return items[0].ID, true, nil
 }
+
+// wrapMissing attaches the name to a not-found sentinel, so the error says
+// which lookup failed rather than only that one did.
+func wrapMissing(sentinel error, name string) error {
+	return fmt.Errorf("%w: %q", sentinel, name)
+}
