@@ -390,6 +390,57 @@ id, err := c.CreatePerformerFrom(ctx, stash.PerformerInput{
 `Image` may be a URL or a `data:` URI. Given a URL, the *server* fetches it,
 so one only the calling machine can reach will not work.
 
+### Reading, changing and removing them
+
+```go
+p, found, err := c.FindPerformerByID(ctx, id)
+list, count, err := c.FindPerformers(ctx,
+    stash.PerformerFilter{Gender: "FEMALE", HasScenes: &no}, 1, 100)
+```
+
+A performer reached through a scene carries only `ID` and `Name` — the shared
+scene selection asks for nothing more, because a page of scenes would
+otherwise drag a full record along for every credit. These two fill the rest
+in.
+
+`UpdatePerformer` is partial in the same way `UpdateScene` is: only the fields
+you set are sent.
+
+```go
+details := "Corrected."
+err := c.UpdatePerformer(ctx, stash.PerformerUpdate{ID: id, Details: &details})
+```
+
+The pointers are what separate "set this to zero" from "leave it alone" — a
+`Rating100` of 0 and a `Favorite` of false are real values, not absences. And
+as with scenes, a partial update cannot *empty* a field, because empty and
+absent look identical on the wire:
+
+```go
+err := c.ClearPerformerFields(ctx, id, "birthdate", "alias_list")
+```
+
+`Aliases`, `URLs`, `TagIDs` and `StashIDs` on an update **replace** what is
+stored rather than adding to it. Read the performer first and send the union
+if adding is what you meant.
+
+### Deleting and merging
+
+```go
+err := c.DeletePerformer(ctx, id)
+err := c.DeletePerformers(ctx, ids...)
+err := c.MergePerformers(ctx, keepID, []string{foldedAwayID}, nil)
+```
+
+`DeletePerformers` is all or nothing: Stash checks every id first, and one
+that does not exist fails the call with nothing deleted. That bites after a
+merge, which has already removed its sources.
+
+`MergePerformers` moves the sources' scenes to the destination and deletes
+them. The destination's own fields win, so the fourth argument is where a
+source's better name or birthdate goes — after the merge the sources are gone
+and there is nothing to copy from. None of this is reversible.
+
 ### Find by stash id, not by name
 
 ```go

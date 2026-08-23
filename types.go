@@ -95,9 +95,40 @@ type Tag struct {
 }
 
 // Performer attached to a scene.
+// Performer as returned by the performer queries.
+//
+// A performer reached through a scene carries only ID and Name: the shared
+// scene selection asks for nothing more, because a page of scenes would
+// otherwise drag a full performer record along for every credit.
+// [Client.FindPerformerByID] and [Client.FindPerformers] fill the rest in.
 type Performer struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID             string    `json:"id"`
+	Name           string    `json:"name"`
+	Disambiguation string    `json:"disambiguation"`
+	Gender         string    `json:"gender"`
+	Birthdate      string    `json:"birthdate"`
+	DeathDate      string    `json:"death_date"`
+	Country        string    `json:"country"`
+	Ethnicity      string    `json:"ethnicity"`
+	EyeColor       string    `json:"eye_color"`
+	HairColor      string    `json:"hair_color"`
+	HeightCM       int       `json:"height_cm"`
+	Weight         int       `json:"weight"`
+	Measurements   string    `json:"measurements"`
+	FakeTits       string    `json:"fake_tits"`
+	CareerStart    int       `json:"career_start"`
+	CareerEnd      int       `json:"career_end"`
+	Tattoos        string    `json:"tattoos"`
+	Piercings      string    `json:"piercings"`
+	Aliases        []string  `json:"alias_list"`
+	URLs           []string  `json:"urls"`
+	Details        string    `json:"details"`
+	Favorite       bool      `json:"favorite"`
+	Rating100      *int      `json:"rating100"`
+	ImagePath      string    `json:"image_path"`
+	SceneCount     int       `json:"scene_count"`
+	Tags           []Tag     `json:"tags"`
+	StashIDs       []StashID `json:"stash_ids"`
 }
 
 // Studio a scene belongs to.

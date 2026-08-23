@@ -119,3 +119,194 @@ func TestFindPerformerByStashIDRefusesAnEmptyID(t *testing.T) {
 		t.Error("want an error for an empty stash id")
 	}
 }
+
+func TestFindPerformerByIDDecodes(t *testing.T) {
+	_, c := server(t, reply(`{"data":{"findPerformer":{
+		"id":"1","name":"Example Performer","gender":"FEMALE","country":"US",
+		"height_cm":167,"birthdate":"1990-01-01","alias_list":["Alias A","Alias B"],
+		"urls":["https://example.test/1"],"scene_count":42,
+		"tags":[{"id":"3","name":"a tag"}],
+		"stash_ids":[{"endpoint":"https://example.test/graphql","stash_id":"abc-123"}]}}}`))
+
+	p, found, err := c.FindPerformerByID(context.Background(), "1")
+	if err != nil || !found {
+		t.Fatalf("FindPerformerByID: %v, found=%v", err, found)
+	}
+	if p.HeightCM != 167 || p.SceneCount != 42 || len(p.Aliases) != 2 {
+		t.Errorf("performer = %+v", p)
+	}
+	if len(p.StashIDs) != 1 || p.StashIDs[0].ID != "abc-123" {
+		t.Errorf("stash ids = %+v", p.StashIDs)
+	}
+}
+
+func TestFindPerformerByIDNotFound(t *testing.T) {
+	_, c := server(t, reply(`{"data":{"findPerformer":null}}`))
+	p, found, err := c.FindPerformerByID(context.Background(), "404")
+	if err != nil || found || p != nil {
+		t.Errorf("got (%v, %v, %v)", p, found, err)
+	}
+}
+
+// The same shape as SceneUpdate: only what is set goes on the wire, so an
+// unset field leaves the stored value alone.
+func TestUpdatePerformerSendsOnlyWhatIsSet(t *testing.T) {
+	cap := &capture{}
+	srv := httptest.NewServer(cap.handler(`{"data":{"performerUpdate":{"id":"1"}}}`))
+	defer srv.Close()
+
+	details := "Only this."
+	if err := NewClient(srv.URL).UpdatePerformer(context.Background(),
+		PerformerUpdate{ID: "1", Details: &details}); err != nil {
+		t.Fatalf("UpdatePerformer: %v", err)
+	}
+	in := inputOf(t, cap.reqs[0])
+	if len(in) != 2 || in["id"] != "1" || in["details"] != "Only this." {
+		t.Errorf("input = %+v, want only id and details", in)
+	}
+}
+
+// A zero is a real value for these, not an absence, so the pointer is what
+// separates "set it to zero" from "leave it".
+func TestUpdatePerformerSendsExplicitZeroes(t *testing.T) {
+	cap := &capture{}
+	srv := httptest.NewServer(cap.handler(`{"data":{"performerUpdate":{"id":"1"}}}`))
+	defer srv.Close()
+
+	zero, no := 0, false
+	err := NewClient(srv.URL).UpdatePerformer(context.Background(),
+		PerformerUpdate{ID: "1", Rating100: &zero, Favorite: &no})
+	if err != nil {
+		t.Fatalf("UpdatePerformer: %v", err)
+	}
+	in := inputOf(t, cap.reqs[0])
+	if in["rating100"] != float64(0) {
+		t.Errorf("rating100 = %#v, want 0 sent", in["rating100"])
+	}
+	if in["favorite"] != false {
+		t.Errorf("favorite = %#v, want false sent", in["favorite"])
+	}
+}
+
+func TestUpdatePerformerNeedsAnID(t *testing.T) {
+	_, c := server(t, reply(`{"data":{}}`))
+	if err := c.UpdatePerformer(context.Background(), PerformerUpdate{}); err == nil {
+		t.Error("want an error without an id")
+	}
+}
+
+// PerformerUpdate omits what is unset, so it cannot empty a field at all.
+func TestClearPerformerFieldsSendsTheRightEmptyValue(t *testing.T) {
+	cap := &capture{}
+	srv := httptest.NewServer(cap.handler(`{"data":{"performerUpdate":{"id":"1"}}}`))
+	defer srv.Close()
+
+	err := NewClient(srv.URL).ClearPerformerFields(context.Background(), "1", "birthdate", "alias_list")
+	if err != nil {
+		t.Fatalf("ClearPerformerFields: %v", err)
+	}
+	in := inputOf(t, cap.reqs[0])
+	if in["birthdate"] != "" {
+		t.Errorf("birthdate = %#v, want an empty string", in["birthdate"])
+	}
+	// A list wants a list; sending "" for one is a type error.
+	list, ok := in["alias_list"].([]any)
+	if !ok || len(list) != 0 {
+		t.Errorf("alias_list = %#v, want an empty list", in["alias_list"])
+	}
+}
+
+// The names are spliced into nothing, but they do reach Stash, and a name it
+// does not know fails the whole mutation rather than being ignored.
+func TestClearPerformerFieldsRefusesAnythingButAFieldName(t *testing.T) {
+	_, c := server(t, reply(`{"data":{}}`))
+	for _, bad := range []string{"birthdate details", "a-b", "1st", "a}"} {
+		if err := c.ClearPerformerFields(context.Background(), "1", bad); err == nil {
+			t.Errorf("ClearPerformerFields(%q): want an error", bad)
+		}
+	}
+	if err := c.ClearPerformerFields(context.Background(), "1"); err != nil {
+		t.Errorf("clearing nothing should be a no-op, got %v", err)
+	}
+}
+
+func TestDeletePerformers(t *testing.T) {
+	cap := &capture{}
+	srv := httptest.NewServer(cap.handler(`{"data":{"performersDestroy":true}}`))
+	defer srv.Close()
+	c := NewClient(srv.URL)
+
+	if err := c.DeletePerformers(context.Background(), "1", "2"); err != nil {
+		t.Fatalf("DeletePerformers: %v", err)
+	}
+	b, _ := json.Marshal(cap.reqs[0].Variables["ids"])
+	if string(b) != `["1","2"]` {
+		t.Errorf("ids = %s", b)
+	}
+	// Nothing to delete is not a request worth making.
+	if err := c.DeletePerformers(context.Background()); err != nil {
+		t.Errorf("DeletePerformers with no ids: %v", err)
+	}
+	if len(cap.reqs) != 1 {
+		t.Errorf("sent %d requests, want 1", len(cap.reqs))
+	}
+}
+
+func TestMergePerformersSendsSourcesAndDestination(t *testing.T) {
+	cap := &capture{}
+	srv := httptest.NewServer(cap.handler(`{"data":{"performerMerge":{"id":"1"}}}`))
+	defer srv.Close()
+
+	name := "The better name"
+	err := NewClient(srv.URL).MergePerformers(context.Background(), "1", []string{"2", "3"},
+		&PerformerUpdate{Name: &name})
+	if err != nil {
+		t.Fatalf("MergePerformers: %v", err)
+	}
+	in := inputOf(t, cap.reqs[0])
+	if in["destination"] != "1" {
+		t.Errorf("destination = %v", in["destination"])
+	}
+	sources, _ := in["source"].([]any)
+	if len(sources) != 2 {
+		t.Errorf("source = %v", in["source"])
+	}
+	// values carries the destination's id, not a source's.
+	values, ok := in["values"].(map[string]any)
+	if !ok || values["id"] != "1" || values["name"] != "The better name" {
+		t.Errorf("values = %v", in["values"])
+	}
+}
+
+// Stash would delete the destination as one of its own sources.
+func TestMergePerformersRefusesToMergeIntoItself(t *testing.T) {
+	_, c := server(t, reply(`{"data":{"performerMerge":{"id":"1"}}}`))
+	if err := c.MergePerformers(context.Background(), "1", []string{"2", "1"}, nil); err == nil {
+		t.Error("want an error when a source is the destination")
+	}
+	if err := c.MergePerformers(context.Background(), "1", nil, nil); err == nil {
+		t.Error("want an error with no sources")
+	}
+	if err := c.MergePerformers(context.Background(), "", []string{"2"}, nil); err == nil {
+		t.Error("want an error with no destination")
+	}
+}
+
+func TestPerformerFilterCriteria(t *testing.T) {
+	yes := true
+	got := PerformerFilter{NameContains: "rachel", Gender: "FEMALE", Favorite: &yes, HasScenes: &yes}.criteria()
+	if got["name"].(map[string]any)["modifier"] != "INCLUDES" {
+		t.Errorf("name = %v", got["name"])
+	}
+	if got["filter_favorites"] != true {
+		t.Errorf("filter_favorites = %v", got["filter_favorites"])
+	}
+	// Zero is the thing being asked about, so the count is compared, not
+	// tested for null.
+	if got["scene_count"].(map[string]any)["modifier"] != "GREATER_THAN" {
+		t.Errorf("scene_count = %v", got["scene_count"])
+	}
+	if len(PerformerFilter{}.criteria()) != 0 {
+		t.Error("an empty filter should filter nothing")
+	}
+}
