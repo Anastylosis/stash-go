@@ -140,6 +140,30 @@ func everyCall() []call {
 		{name: "DeleteTag", run: func(ctx context.Context, c *Client) error { return c.DeleteTag(ctx, "1") }},
 		{name: "DeleteTags", run: func(ctx context.Context, c *Client) error { return c.DeleteTags(ctx, "1") }},
 		{name: "MergeTags", run: func(ctx context.Context, c *Client) error { return c.MergeTags(ctx, "1", []string{"2"}, nil) }},
+		{name: "MergeScenes", run: func(ctx context.Context, c *Client) error { return c.MergeScenes(ctx, "1", []string{"2"}, nil) }},
+		{name: "DeleteScene", run: func(ctx context.Context, c *Client) error { return c.DeleteScene(ctx, "1", DeleteOptions{}) }},
+		{name: "DeleteScenes", run: func(ctx context.Context, c *Client) error { return c.DeleteScenes(ctx, []string{"1"}, DeleteOptions{}) }},
+		{name: "AssignFile", run: func(ctx context.Context, c *Client) error { return c.AssignFile(ctx, "1", "2") }},
+		{name: "MoveFiles", run: func(ctx context.Context, c *Client) error {
+			return c.MoveFiles(ctx, []string{"1"}, MoveTarget{FolderID: "2"})
+		}},
+		{name: "DestroyFiles", run: func(ctx context.Context, c *Client) error { return c.DestroyFiles(ctx, "1") }},
+		{name: "SetFingerprints", run: func(ctx context.Context, c *Client) error {
+			return c.SetFingerprints(ctx, "1", []Fingerprint{{Type: "oshash", Value: "abc"}})
+		}},
+		{name: "FindFile", run: func(ctx context.Context, c *Client) error { _, _, err := c.FindFile(ctx, "1"); return err }},
+		{name: "FindFileByPath", run: func(ctx context.Context, c *Client) error {
+			_, _, err := c.FindFileByPath(ctx, "/library/a.mp4")
+			return err
+		}},
+		{name: "FindSceneByHash", run: func(ctx context.Context, c *Client) error {
+			_, _, err := c.FindSceneByHash(ctx, "oshash", "abc")
+			return err
+		}},
+		{name: "FindScenesByPathRegex", run: func(ctx context.Context, c *Client) error {
+			_, _, err := c.FindScenesByPathRegex(ctx, "a", 1, 10)
+			return err
+		}},
 		{name: "StashBoxes", run: func(ctx context.Context, c *Client) error { _, err := c.StashBoxes(ctx); return err }},
 		{name: "StashBoxConfigs", run: func(ctx context.Context, c *Client) error { _, err := c.StashBoxConfigs(ctx); return err }},
 		{name: "SetStashBoxes", run: func(ctx context.Context, c *Client) error {

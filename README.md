@@ -41,18 +41,18 @@ scenes, err := c.FindAllScenes(ctx, stash.SceneFilter{StudioName: "Example"}, ni
 ## What it covers
 
 Scenes, performers, studios and tags; the files and fingerprints behind a
-scene; saved filters; plugins and the package manager; the metadata tasks and
-the jobs they run; database backup; and submitting to a stash-box.
+scene; the merge, delete and move calls behind deduplication; saved filters;
+plugins and the package manager; the metadata tasks and the jobs they run;
+database backup; and submitting to a stash-box.
 
-That is **23 of Stash's 62 queries and 37 of its 125 mutations**. The rest is
+That is **26 of Stash's 62 queries and 44 of its 125 mutations**. The rest is
 mostly galleries, images, groups and markers — whole object types this has
 never needed, and writing them untested would be worse than leaving them out.
 `Execute` reaches anything not wrapped, using the same transport, auth and
 error handling.
 
-The notable gap for anyone doing library maintenance is **deduplication**:
-`sceneMerge`, `sceneDestroy` and `moveFiles` are not here yet, though
-`MergePerformers` and `MergeTags` are.
+Scene creation is the gap on the write side: this reads and reshapes a library
+Stash already scanned, and has never needed to invent a scene from nothing.
 
 ## Which Stash it works against
 

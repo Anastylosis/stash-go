@@ -338,3 +338,114 @@ func TestLiveJobQueue(t *testing.T) {
 		t.Log("job 99999999 exists on this server; skipping the not-found assertion")
 	}
 }
+
+// The lifecycle mutations are absent from this file on purpose: every one of
+// them deletes or moves something, and there is no way to assert they worked
+// without doing it to a real library. Only the read half is exercised here.
+
+func TestLiveFindFileByIDAndPath(t *testing.T) {
+	c := client(t)
+	ctx := context.Background()
+	scene := sample(t, c, 1)[0]
+	want := scene.PrimaryFile()
+	if want == nil {
+		t.Skip("scene has no file")
+	}
+
+	byID, found, err := c.FindFile(ctx, want.ID)
+	if err != nil || !found {
+		t.Fatalf("FindFile: %v, found=%v", err, found)
+	}
+	if byID.Path != want.Path {
+		t.Errorf("path = %q, want %q", byID.Path, want.Path)
+	}
+	// The VideoFile fragment has to resolve against the real schema; a scene's
+	// file always has a duration, so a zero here means the fragment missed.
+	if byID.Duration == 0 {
+		t.Errorf("duration = 0 for %s", byID.Basename)
+	}
+
+	byPath, found, err := c.FindFileByPath(ctx, want.Path)
+	if err != nil || !found {
+		t.Fatalf("FindFileByPath: %v, found=%v", err, found)
+	}
+	if byPath.ID != want.ID {
+		t.Errorf("id = %q, want %q", byPath.ID, want.ID)
+	}
+}
+
+// A path Stash does not know is an error at the GraphQL layer, because
+// findFile is non-null. It must reach the caller as absence, not failure.
+func TestLiveFindFileByPathMissing(t *testing.T) {
+	file, found, err := client(t).FindFileByPath(context.Background(), "/nowhere/absent.mp4")
+	if err != nil {
+		t.Fatalf("FindFileByPath: %v", err)
+	}
+	if found || file != nil {
+		t.Errorf("found=%v file=%v", found, file)
+	}
+}
+
+func TestLiveFindSceneByHash(t *testing.T) {
+	c := client(t)
+	ctx := context.Background()
+	for _, scene := range sample(t, c, 5) {
+		file := scene.PrimaryFile()
+		if file == nil {
+			continue
+		}
+		hash, ok := file.Fingerprint("oshash")
+		if !ok {
+			continue
+		}
+		got, found, err := c.FindSceneByHash(ctx, "oshash", hash)
+		if err != nil || !found {
+			t.Fatalf("FindSceneByHash: %v, found=%v", err, found)
+		}
+		if got.ID != scene.ID {
+			t.Errorf("hash %s resolved to scene %s, want %s", hash, got.ID, scene.ID)
+		}
+		return
+	}
+	t.Skip("no sampled scene carries an oshash")
+}
+
+func TestLiveFindSceneByHashMissing(t *testing.T) {
+	scene, found, err := client(t).FindSceneByHash(context.Background(), "oshash", "0000000000000000")
+	if err != nil {
+		t.Fatalf("FindSceneByHash: %v", err)
+	}
+	if found || scene != nil {
+		t.Errorf("found=%v scene=%v", found, scene)
+	}
+}
+
+func TestLiveFindScenesByPathRegex(t *testing.T) {
+	c := client(t)
+	ctx := context.Background()
+	scene := sample(t, c, 1)[0]
+	file := scene.PrimaryFile()
+	if file == nil {
+		t.Skip("scene has no file")
+	}
+
+	// A pattern built from a path the server just reported, so a match is
+	// guaranteed and the test says nothing about the library's contents.
+	scenes, total, err := c.FindScenesByPathRegex(ctx, `\.[a-zA-Z0-9]+$`, 1, 5)
+	if err != nil {
+		t.Fatalf("FindScenesByPathRegex: %v", err)
+	}
+	if total == 0 || len(scenes) == 0 {
+		t.Fatalf("no scene matched a path with an extension (total=%d)", total)
+	}
+
+	// A pattern that cannot match anything must come back empty rather than
+	// falling through to every scene.
+	_, total, err = c.FindScenesByPathRegex(ctx, `^zzz-no-such-path-zzz$`, 1, 5)
+	if err != nil {
+		t.Fatalf("FindScenesByPathRegex: %v", err)
+	}
+	if total != 0 {
+		t.Errorf("total = %d for an impossible pattern", total)
+	}
+}

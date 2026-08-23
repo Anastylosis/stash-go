@@ -89,7 +89,8 @@ nil for a scene with no files. `Fingerprint` looks up a hash by type
 (`"oshash"`, `"phash"`, `"md5"`).
 
 A scene has more than one file when Stash has attached re-detected duplicates
-to it, which is the case deduplication tools care about.
+to it, which is the case deduplication tools care about — see
+[Deduplication, deletion and files](#deduplication-deletion-and-files).
 
 ### Filtering by date
 
@@ -393,6 +394,123 @@ ids", so removing the last one silently does nothing.
 ```go
 err := c.SetSceneStashIDs(ctx, sceneID, nil)   // actually clears them
 ```
+
+## Deduplication, deletion and files
+
+This is the one part of the API that destroys things. The calls are shaped so
+that the destructive choice has to be typed out, and nothing here is
+reversible.
+
+### Finding the duplicate
+
+```go
+scene, found, err := c.FindSceneByHash(ctx, "oshash", hash)
+```
+
+An exact lookup: `oshash` (or `md5`/`checksum`) names one file, so one scene.
+`phash` is rejected — it is a similarity hash, and this query cannot do
+similarity. `FindDuplicateScenes` is the call that uses phash, with a
+distance.
+
+When the question is about paths rather than hashes:
+
+```go
+scenes, total, err := c.FindScenesByPathRegex(ctx, `S\d\dE\d\d`, 1, 100)
+```
+
+The server evaluates the pattern, in Go's regexp syntax, against the whole
+path. `SceneFilter.PathContains` covers a plain substring; this is for
+everything a substring cannot ask.
+
+### Merging
+
+```go
+err := c.MergeScenes(ctx, keepID, []string{foldedAwayID}, &stash.SceneUpdate{
+    Title: &betterTitle,
+})
+```
+
+The sources' files move to the destination and the source scenes are deleted.
+No video is touched on disk. The destination's own metadata wins, so the
+fourth argument is where a source's better title or date goes — afterwards
+there is nothing left to copy from. The `ID` on that update is overwritten
+with the destination's, because an update aimed anywhere else would write onto
+a scene the merge is about to delete.
+
+A source that is also the destination is refused rather than passed on: Stash
+would fold the scene into itself and delete it.
+
+### Deleting
+
+```go
+err := c.DeleteScene(ctx, id, stash.DeleteOptions{})
+err := c.DeleteScenes(ctx, ids, stash.DeleteOptions{DeleteFile: true})
+```
+
+A zero `DeleteOptions` removes the database record and leaves the video where
+it is — the recoverable choice, since the next scan finds it again. The three
+fields each go further:
+
+| Field | What it does |
+| --- | --- |
+| `DeleteFile` | Deletes the video from disk. No undo, no wastebasket. |
+| `DeleteGenerated` | Removes sprites, previews and covers. Regenerable from the video. |
+| `DestroyFileEntry` | Forgets the file record too, so a rescan re-adds it. |
+
+`DestroyFileEntry` is the subtle one. Without it Stash remembers the file and
+will *not* re-add it on the next scan — right when deleting a duplicate whose
+video is still on disk under another scene, wrong when the file is gone and
+you may restore it later.
+
+### Moving and renaming
+
+```go
+err := c.MoveFiles(ctx, fileIDs, stash.MoveTarget{FolderID: "12"})
+err := c.MoveFiles(ctx, []string{fileID}, stash.MoveTarget{Basename: "better name.mp4"})
+```
+
+A real move on the filesystem, with Stash's records updated to match. The
+destination has to be inside a configured library path or Stash refuses.
+`Basename` with more than one file is refused here, because it would give them
+all the same name.
+
+### Reattaching a file
+
+```go
+err := c.AssignFile(ctx, sceneID, fileID)
+```
+
+Moves a file to another scene. This is how a file Stash matched to the wrong
+scene is put right without deleting anything.
+
+### Files directly
+
+```go
+file, found, err := c.FindFile(ctx, fileID)
+file, found, err := c.FindFileByPath(ctx, `Z:\library\a.mp4`)
+```
+
+The path must be exactly as Stash stored it, separators included — on a
+Windows server, backslashes. A path Stash does not know comes back as
+`found == false`; Stash reports it as a GraphQL error, because `findFile` is
+declared non-null, and that one error is translated back into absence.
+
+```go
+err := c.SetFingerprints(ctx, fileID, fingerprints)
+```
+
+Replaces, not merges: a hash the file had and this call omits is dropped. Read
+the file first and append if adding one is what you meant.
+
+### Deleting files
+
+```go
+err := c.DestroyFiles(ctx, fileIDs...)
+```
+
+Deletes the videos from disk and removes their records. Permanent. The name
+does not say so, which is why this paragraph does: `DeleteScene` without
+`DeleteFile` is the reversible option.
 
 ## Media the API will not hand over
 
