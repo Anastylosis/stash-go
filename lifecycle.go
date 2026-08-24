@@ -7,19 +7,34 @@ import (
 	"fmt"
 )
 
+// MergeOptions says what a merge carries across besides the files.
+//
+// Both default to false, which is Stash's own default and discards the
+// sources' watch history. A deduplicating tool usually wants both: the copy
+// being kept is the same content, so the times it was watched belong to it.
+type MergeOptions struct {
+	// PlayHistory folds the sources' play timestamps into the
+	// destination's.
+	PlayHistory bool
+	// OHistory folds the sources' o timestamps into the destination's.
+	OHistory bool
+}
+
 // MergeScenes folds the source scenes into the destination and deletes them,
 // moving their files across.
 //
 // The destination keeps its own metadata; values is applied to it as part of
 // the merge, which is where a source's better title or date goes — afterwards
-// the sources are gone and there is nothing left to copy from.
+// the sources are gone and there is nothing left to copy from. Stash does not
+// union metadata by itself, so values is the whole of what survives from a
+// source: compute it before calling.
 //
 // This deletes database records, not files on disk: the sources' files are
 // reattached to the destination. Deleting a file is [Client.DeleteScene] with
 // DeleteFile set, or [Client.DestroyFiles].
 //
 // Not reversible.
-func (c *Client) MergeScenes(ctx context.Context, destinationID string, sourceIDs []string, values *SceneUpdate) error {
+func (c *Client) MergeScenes(ctx context.Context, destinationID string, sourceIDs []string, values *SceneUpdate, opts MergeOptions) error {
 	if destinationID == "" {
 		return fmt.Errorf("stash: merging scenes: no destination")
 	}
@@ -33,6 +48,12 @@ func (c *Client) MergeScenes(ctx context.Context, destinationID string, sourceID
 		}
 	}
 	input := map[string]any{"source": sourceIDs, "destination": destinationID}
+	if opts.PlayHistory {
+		input["play_history"] = true
+	}
+	if opts.OHistory {
+		input["o_history"] = true
+	}
 	if values != nil {
 		v := *values
 		v.ID = destinationID
@@ -116,6 +137,27 @@ func (c *Client) DeleteScenes(ctx context.Context, ids []string, opts DeleteOpti
 	})
 	if err != nil {
 		return fmt.Errorf("stash: deleting %d scenes: %w", len(ids), err)
+	}
+	return nil
+}
+
+// SetPrimaryFile chooses which of a scene's files is the primary one — the
+// file Stash streams, and the one whose resolution and codec the scene
+// reports as its own.
+//
+// This is not [Client.AssignFile]: that moves a file between scenes, while
+// this reorders the files a scene already has. A scene left with several
+// files after a merge is the usual reason to call it, picking the best of
+// them before the rest are destroyed.
+//
+// The file must already belong to the scene; Stash rejects the update
+// otherwise.
+func (c *Client) SetPrimaryFile(ctx context.Context, sceneID, fileID string) error {
+	if sceneID == "" || fileID == "" {
+		return fmt.Errorf("stash: setting the primary file: a scene id and a file id are both required")
+	}
+	if err := c.UpdateScene(ctx, SceneUpdate{ID: sceneID, PrimaryFileID: &fileID}); err != nil {
+		return fmt.Errorf("stash: making file %s primary on scene %s: %w", fileID, sceneID, err)
 	}
 	return nil
 }

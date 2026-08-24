@@ -11,7 +11,7 @@ import (
 func TestMergeScenesRefusesSelfMerge(t *testing.T) {
 	_, c := server(t, reply(`{"data":{"sceneMerge":{"id":"5"}}}`))
 
-	err := c.MergeScenes(context.Background(), "5", []string{"6", "5"}, nil)
+	err := c.MergeScenes(context.Background(), "5", []string{"6", "5"}, nil, MergeOptions{})
 	if err == nil {
 		t.Fatal("merging a scene into itself was allowed")
 	}
@@ -23,10 +23,10 @@ func TestMergeScenesRefusesSelfMerge(t *testing.T) {
 func TestMergeScenesRefusesEmptyArguments(t *testing.T) {
 	_, c := server(t, reply(`{"data":{"sceneMerge":{"id":"5"}}}`))
 
-	if err := c.MergeScenes(context.Background(), "", []string{"6"}, nil); err == nil {
+	if err := c.MergeScenes(context.Background(), "", []string{"6"}, nil, MergeOptions{}); err == nil {
 		t.Error("no destination was allowed")
 	}
-	if err := c.MergeScenes(context.Background(), "5", nil, nil); err == nil {
+	if err := c.MergeScenes(context.Background(), "5", nil, nil, MergeOptions{}); err == nil {
 		t.Error("no sources was allowed")
 	}
 }
@@ -40,7 +40,7 @@ func TestMergeScenesAddressesValuesAtTheDestination(t *testing.T) {
 	// The caller left values.ID empty, or wrong: an update aimed anywhere but
 	// the destination would write onto a scene the merge is about to delete.
 	err := NewClient(srv.URL).MergeScenes(context.Background(), "5", []string{"6"},
-		&SceneUpdate{ID: "6", Title: &title})
+		&SceneUpdate{ID: "6", Title: &title}, MergeOptions{})
 	if err != nil {
 		t.Fatalf("MergeScenes: %v", err)
 	}
@@ -347,5 +347,70 @@ func TestFindScenesByPathRegexNeedsAPattern(t *testing.T) {
 
 	if _, _, err := c.FindScenesByPathRegex(context.Background(), "", 1, 10); err == nil {
 		t.Fatal("an empty pattern was allowed")
+	}
+}
+
+func TestMergeScenesCarriesHistoryOnlyWhenAsked(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		opts MergeOptions
+		want map[string]bool // field -> present
+	}{
+		{"neither", MergeOptions{}, map[string]bool{"play_history": false, "o_history": false}},
+		{"play only", MergeOptions{PlayHistory: true}, map[string]bool{"play_history": true, "o_history": false}},
+		{"both", MergeOptions{PlayHistory: true, OHistory: true}, map[string]bool{"play_history": true, "o_history": true}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cap := &capture{}
+			srv := httptest.NewServer(cap.handler(`{"data":{"sceneMerge":{"id":"5"}}}`))
+			defer srv.Close()
+
+			err := NewClient(srv.URL).MergeScenes(context.Background(), "5", []string{"6"}, nil, tc.opts)
+			if err != nil {
+				t.Fatalf("MergeScenes: %v", err)
+			}
+			in := inputOf(t, cap.reqs[0])
+			for field, want := range tc.want {
+				got, present := in[field]
+				if present != want {
+					t.Errorf("%s present = %v, want %v (input %v)", field, present, want, in)
+				}
+				if want && got != true {
+					t.Errorf("%s = %v, want true", field, got)
+				}
+			}
+		})
+	}
+}
+
+func TestSetPrimaryFileAddressesTheScene(t *testing.T) {
+	cap := &capture{}
+	srv := httptest.NewServer(cap.handler(`{"data":{"sceneUpdate":{"id":"5"}}}`))
+	defer srv.Close()
+
+	if err := NewClient(srv.URL).SetPrimaryFile(context.Background(), "5", "77"); err != nil {
+		t.Fatalf("SetPrimaryFile: %v", err)
+	}
+	in := inputOf(t, cap.reqs[0])
+	if in["id"] != "5" {
+		t.Errorf("id = %v, want 5", in["id"])
+	}
+	if in["primary_file_id"] != "77" {
+		t.Errorf("primary_file_id = %v, want 77", in["primary_file_id"])
+	}
+	// Nothing else may ride along: this update must not blank a field the
+	// caller never mentioned.
+	if len(in) != 2 {
+		t.Errorf("update sent %d fields, want just id and primary_file_id: %v", len(in), in)
+	}
+}
+
+func TestSetPrimaryFileRefusesEmptyArguments(t *testing.T) {
+	_, c := server(t, reply(`{"data":{"sceneUpdate":{"id":"5"}}}`))
+	if err := c.SetPrimaryFile(context.Background(), "", "77"); err == nil {
+		t.Error("no scene id was allowed")
+	}
+	if err := c.SetPrimaryFile(context.Background(), "5", ""); err == nil {
+		t.Error("no file id was allowed")
 	}
 }

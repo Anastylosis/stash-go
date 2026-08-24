@@ -183,6 +183,12 @@ type SceneUpdate struct {
 	Organized    *bool     `json:"organized,omitempty"`
 	StashIDs     []StashID `json:"stash_ids,omitempty"`
 
+	// PrimaryFileID picks which of the scene's files it streams from, and
+	// which one's resolution and codec it reports as its own. The file must
+	// already belong to the scene. [Client.SetPrimaryFile] is this field on
+	// its own.
+	PrimaryFileID *string `json:"primary_file_id,omitempty"`
+
 	// CoverImage is a data URI ("data:image/jpeg;base64,…").
 	//
 	// This package deliberately does not fetch it for you: downloading an

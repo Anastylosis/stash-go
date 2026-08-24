@@ -141,7 +141,9 @@ func everyCall() []call {
 		{name: "DeleteTag", run: func(ctx context.Context, c *Client) error { return c.DeleteTag(ctx, "1") }},
 		{name: "DeleteTags", run: func(ctx context.Context, c *Client) error { return c.DeleteTags(ctx, "1") }},
 		{name: "MergeTags", run: func(ctx context.Context, c *Client) error { return c.MergeTags(ctx, "1", []string{"2"}, nil) }},
-		{name: "MergeScenes", run: func(ctx context.Context, c *Client) error { return c.MergeScenes(ctx, "1", []string{"2"}, nil) }},
+		{name: "MergeScenes", run: func(ctx context.Context, c *Client) error {
+			return c.MergeScenes(ctx, "1", []string{"2"}, nil, MergeOptions{})
+		}},
 		{name: "DeleteScene", run: func(ctx context.Context, c *Client) error { return c.DeleteScene(ctx, "1", DeleteOptions{}) }},
 		{name: "DeleteScenes", run: func(ctx context.Context, c *Client) error { return c.DeleteScenes(ctx, []string{"1"}, DeleteOptions{}) }},
 		{name: "AssignFile", run: func(ctx context.Context, c *Client) error { return c.AssignFile(ctx, "1", "2") }},

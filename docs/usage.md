@@ -457,7 +457,7 @@ everything a substring cannot ask.
 ```go
 err := c.MergeScenes(ctx, keepID, []string{foldedAwayID}, &stash.SceneUpdate{
     Title: &betterTitle,
-})
+}, stash.MergeOptions{PlayHistory: true, OHistory: true})
 ```
 
 The sources' files move to the destination and the source scenes are deleted.
@@ -469,6 +469,11 @@ a scene the merge is about to delete.
 
 A source that is also the destination is refused rather than passed on: Stash
 would fold the scene into itself and delete it.
+
+`MergeOptions` is what the merge carries besides the files. Both fields
+default to false, matching Stash's own default, which discards the sources'
+watch history. When the scenes really are the same content that is the wrong
+default: the times it was watched belong to the copy being kept.
 
 ### Deleting
 
@@ -512,6 +517,20 @@ err := c.AssignFile(ctx, sceneID, fileID)
 
 Moves a file to another scene. This is how a file Stash matched to the wrong
 scene is put right without deleting anything.
+
+```go
+err := c.SetPrimaryFile(ctx, sceneID, fileID)
+```
+
+Chooses which of a scene's own files it streams, and whose resolution and
+codec it reports as its own. Not the same call: `AssignFile` moves a file
+between scenes, this reorders the files one scene already has, and the file
+must already belong to it.
+
+A merge is the usual reason to reach for it. Afterwards the destination holds
+every file the sources brought, in no particular order — naming the best one
+before destroying the rest is what stops a 4K scene from reporting itself as
+the 540p copy that happened to sort first.
 
 ### Files directly
 
