@@ -138,6 +138,19 @@ no := false
 scenes, _, err := c.FindScenes(ctx, stash.SceneFilter{HasStashID: &no}, 1, 100)
 ```
 
+### Scenes with more than one file
+
+```go
+multi := true
+scenes, total, err := c.FindScenes(ctx, stash.SceneFilter{MultiFile: &multi}, 1, 100)
+```
+
+Stash attaches a re-detected file to the scene that already holds its hash
+rather than making a second scene, so these are the duplicates that never
+became duplicates — invisible to `FindDuplicateScenes`, which compares scenes
+to each other. `false` selects the ordinary single-file scenes; leaving it nil
+asks about neither.
+
 ### Whole library
 
 ```go
@@ -409,8 +422,25 @@ scene, found, err := c.FindSceneByHash(ctx, "oshash", hash)
 
 An exact lookup: `oshash` (or `md5`/`checksum`) names one file, so one scene.
 `phash` is rejected — it is a similarity hash, and this query cannot do
-similarity. `FindDuplicateScenes` is the call that uses phash, with a
-distance.
+similarity.
+
+Similarity is the other call:
+
+```go
+groups, err := c.FindDuplicateScenes(ctx, 4, 1.0)
+```
+
+The server groups scenes by perceptual hash and hands back each group whole.
+`distance` is how far two hashes may differ: 0 demands identical ones, 4 finds
+re-encodes and resolution changes, and past 8 the matches stop being worth
+reviewing.
+
+`durationDiff` is the argument that decides whether the result is usable. It
+bounds how far apart two runtimes may be, in seconds, and it is the strong
+half of the test — phashes collide across unrelated videos often enough to
+matter, but a collision that also agrees on length rarely does. Leave it out
+and nothing fails; you simply get a much noisier answer. Pass a negative value
+to mean it deliberately.
 
 When the question is about paths rather than hashes:
 
@@ -877,11 +907,11 @@ When your query returns scenes, paste in `SceneFields` and decode into `Scene`
 rather than declaring a parallel type and field list that drift apart:
 
 ```go
-query := `query { findDuplicateScenes(distance: 4) { ` + stash.SceneFields + ` } }`
-data, err := c.Execute(ctx, query, nil)
+query := `query($q: String) { sceneWall(q: $q) { ` + stash.SceneFields + ` } }`
+data, err := c.Execute(ctx, query, map[string]any{"q": "beach"})
 
 var result struct {
-    Groups [][]stash.Scene `json:"findDuplicateScenes"`
+    Scenes []stash.Scene `json:"sceneWall"`
 }
 err = json.Unmarshal(data, &result)
 ```

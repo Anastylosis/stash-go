@@ -10,7 +10,7 @@ import (
 // writing its own query with [Client.Execute] fills the same type completely
 // rather than maintaining a parallel field list that drifts.
 //
-//	query := `query { findDuplicateScenes { ` + stash.SceneFields + ` } }`
+//	query := `query { sceneWall(q: "beach") { ` + stash.SceneFields + ` } }`
 //
 // Every field here must exist on the oldest supported server — see
 // docs/design.md.
@@ -243,6 +243,14 @@ func (c *Client) SceneFilterCriteria(ctx context.Context, filter SceneFilter) (m
 		}
 	}
 
+	if filter.MultiFile != nil {
+		modifier := "EQUALS"
+		if *filter.MultiFile {
+			modifier = "GREATER_THAN"
+		}
+		sceneFilter["file_count"] = map[string]any{"value": 1, "modifier": modifier}
+	}
+
 	return sceneFilter, nil
 }
 
@@ -394,4 +402,43 @@ func (c *Client) ClearSceneFields(ctx context.Context, id string, fields ...stri
 		return fmt.Errorf("stash: clearing fields on scene %s: %w", id, err)
 	}
 	return nil
+}
+
+// FindDuplicateScenes returns groups of scenes Stash considers the same
+// content, matched on the perceptual hash of the video rather than on any
+// metadata. Each group holds two or more scenes; a library with no duplicates
+// returns none.
+//
+// distance is the hamming distance allowed between two phashes. 0 demands
+// identical hashes, which finds the same encode stored twice. 4 is the useful
+// setting and catches re-encodes and resolution changes. Past 8 the matches
+// stop being trustworthy.
+//
+// durationDiff bounds how far apart two scenes' runtimes may be, in seconds,
+// and is the strong filter of the two: phash collides across unrelated videos
+// often enough to matter, but a collision that also agrees on length to
+// within a second rarely does. Pass 0 to demand equal durations, or a
+// negative value to leave duration out of it.
+//
+// The whole result arrives in one response, and every scene in it carries the
+// full selection set — on a large library that is megabytes. There is no
+// paged form of this query: Stash computes the grouping in one pass and has
+// nowhere to hold it between calls.
+func (c *Client) FindDuplicateScenes(ctx context.Context, distance int, durationDiff float64) ([][]Scene, error) {
+	data, err := c.do(ctx, graphqlRequest{
+		Query: `query($distance: Int, $duration_diff: Float) {
+			findDuplicateScenes(distance: $distance, duration_diff: $duration_diff) {` +
+			c.sceneSelection(ctx) + ` } }`,
+		Variables: map[string]any{"distance": distance, "duration_diff": durationDiff},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("stash: finding duplicate scenes: %w", err)
+	}
+	var result struct {
+		FindDuplicateScenes [][]Scene `json:"findDuplicateScenes"`
+	}
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, fmt.Errorf("stash: decoding duplicate scenes: %w", err)
+	}
+	return result.FindDuplicateScenes, nil
 }

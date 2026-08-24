@@ -461,3 +461,87 @@ func TestClearSceneFieldsRefusesAnythingButAFieldName(t *testing.T) {
 		t.Error("want an error without an id")
 	}
 }
+
+func TestFindDuplicateScenesGroupsScenes(t *testing.T) {
+	cap := &capture{}
+	srv := httptest.NewServer(cap.handler(`{"data":{"findDuplicateScenes":[
+		[{"id":"1","files":[{"id":"11","size":100}]},{"id":"2","files":[{"id":"22","size":50}]}],
+		[{"id":"3"},{"id":"4"},{"id":"5"}]
+	]}}`))
+	defer srv.Close()
+
+	groups, err := NewClient(srv.URL).FindDuplicateScenes(context.Background(), 4, 1.0)
+	if err != nil {
+		t.Fatalf("FindDuplicateScenes: %v", err)
+	}
+	if len(groups) != 2 {
+		t.Fatalf("len(groups) = %d, want 2", len(groups))
+	}
+	if len(groups[0]) != 2 || len(groups[1]) != 3 {
+		t.Errorf("group sizes = %d, %d; want 2, 3", len(groups[0]), len(groups[1]))
+	}
+	// The grouping is the whole point: a flattened result would lose which
+	// scene is a duplicate of which.
+	if groups[0][0].ID != "1" || groups[0][1].ID != "2" {
+		t.Errorf("group 0 = %v", groups[0])
+	}
+	if len(groups[0][0].Files) != 1 || groups[0][0].Files[0].Size != 100 {
+		t.Errorf("files did not decode: %+v", groups[0][0].Files)
+	}
+
+	vars := cap.reqs[0].Variables
+	if vars["distance"] != float64(4) {
+		t.Errorf("distance = %v, want 4", vars["distance"])
+	}
+	if vars["duration_diff"] != 1.0 {
+		t.Errorf("duration_diff = %v, want 1", vars["duration_diff"])
+	}
+}
+
+func TestFindDuplicateScenesEmptyLibrary(t *testing.T) {
+	_, c := server(t, reply(`{"data":{"findDuplicateScenes":[]}}`))
+	groups, err := c.FindDuplicateScenes(context.Background(), 0, 0)
+	if err != nil {
+		t.Fatalf("FindDuplicateScenes: %v", err)
+	}
+	if len(groups) != 0 {
+		t.Errorf("len(groups) = %d, want 0", len(groups))
+	}
+}
+
+func TestSceneFilterMultiFileCriterion(t *testing.T) {
+	_, c := server(t, reply(`{"data":{}}`))
+	ctx := context.Background()
+
+	yes, no := true, false
+	for _, tc := range []struct {
+		name     string
+		value    *bool
+		modifier string
+	}{
+		{"more than one file", &yes, "GREATER_THAN"},
+		{"exactly one file", &no, "EQUALS"},
+	} {
+		got, err := c.SceneFilterCriteria(ctx, SceneFilter{MultiFile: tc.value})
+		if err != nil {
+			t.Fatalf("%s: %v", tc.name, err)
+		}
+		crit, ok := got["file_count"].(map[string]any)
+		if !ok {
+			t.Fatalf("%s: no file_count criterion in %v", tc.name, got)
+		}
+		if crit["modifier"] != tc.modifier || crit["value"] != 1 {
+			t.Errorf("%s: file_count = %v, want value 1 modifier %s", tc.name, crit, tc.modifier)
+		}
+	}
+
+	// Nil must not send the criterion at all — an unasked filter that
+	// silently selects single-file scenes would hide most of a library.
+	got, err := c.SceneFilterCriteria(ctx, SceneFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, present := got["file_count"]; present {
+		t.Errorf("nil MultiFile sent a file_count criterion: %v", got)
+	}
+}

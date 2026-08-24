@@ -213,6 +213,14 @@ type SceneFilter struct {
 	// Nil means "either".
 	HasDate *bool `json:"-"`
 
+	// MultiFile selects scenes with more than one file attached (true) or
+	// with exactly one (false). Nil means "either".
+	//
+	// Stash attaches a re-detected file to the scene that already has its
+	// hash rather than creating a second scene, so true is how the
+	// duplicates that never became separate scenes are found.
+	MultiFile *bool `json:"-"`
+
 	// TagNames selects scenes carrying every one of these tags, and
 	// ExcludeTagNames scenes carrying none of them. Both are resolved to
 	// ids first, and a name no tag has is an error rather than an empty
