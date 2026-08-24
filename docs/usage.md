@@ -883,6 +883,23 @@ about it, ideally something the stash-box did not supply, before believing it.
 An empty result is the ordinary answer for a library the stash-box does not
 cover, not a failure.
 
+Identifying a whole library one scene at a time is the slow way round:
+
+```go
+batch := sceneIDs[:20]
+candidates, err := c.ScrapeMultiScenes(ctx, endpoint, batch)
+for i, forScene := range candidates {
+    // forScene is what the stash-box offered for batch[i]; empty means no match.
+}
+```
+
+The result is parallel to the ids given — one entry per scene, in order, empty
+where the stash-box recognised nothing — so the two slices can be walked
+together. Stash queries the stash-box once per scene either way and paces
+itself by its own `max_requests_per_minute`, so the batch size is a question
+of how much work a failed request loses, not of politeness. Twenty or so is
+comfortable.
+
 ### Scraping a stash-box
 
 ```go

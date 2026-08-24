@@ -179,3 +179,61 @@ func TestScrapeSceneCallsNeedBothArguments(t *testing.T) {
 		t.Error("want an error without a scene id")
 	}
 }
+
+func TestScrapeMultiScenesKeepsResultsParallelToInput(t *testing.T) {
+	cap := &capture{}
+	// The middle scene is one the stash-box does not know: its entry is
+	// empty rather than absent, which is what keeps the slices aligned.
+	srv := httptest.NewServer(cap.handler(`{"data":{"scrapeMultiScenes":[
+		[{"title":"First","remote_site_id":"aaa"}],
+		[],
+		[{"title":"Third","remote_site_id":"ccc"},{"title":"Third alt","remote_site_id":"ddd"}]
+	]}}`))
+	defer srv.Close()
+
+	ids := []string{"1", "2", "3"}
+	got, err := NewClient(srv.URL).ScrapeMultiScenes(context.Background(), "https://box.test/graphql", ids)
+	if err != nil {
+		t.Fatalf("ScrapeMultiScenes: %v", err)
+	}
+	if len(got) != len(ids) {
+		t.Fatalf("len(got) = %d, want one entry per scene (%d)", len(got), len(ids))
+	}
+	if len(got[0]) != 1 || got[0][0].RemoteSiteID != "aaa" {
+		t.Errorf("scene 1 = %+v", got[0])
+	}
+	if len(got[1]) != 0 {
+		t.Errorf("unmatched scene 2 = %+v, want empty", got[1])
+	}
+	if len(got[2]) != 2 {
+		t.Errorf("scene 3 = %+v, want 2 candidates", got[2])
+	}
+
+	vars := cap.reqs[0].Variables
+	src, _ := vars["source"].(map[string]any)
+	if src["stash_box_endpoint"] != "https://box.test/graphql" {
+		t.Errorf("source = %v", src)
+	}
+	in, _ := vars["input"].(map[string]any)
+	sent, _ := in["scene_ids"].([]any)
+	if len(sent) != 3 || sent[0] != "1" || sent[2] != "3" {
+		t.Errorf("scene_ids = %v, want all three in order", in["scene_ids"])
+	}
+}
+
+func TestScrapeMultiScenesEmptyInputMakesNoRequest(t *testing.T) {
+	cap := &capture{}
+	srv := httptest.NewServer(cap.handler(`{"data":{"scrapeMultiScenes":[]}}`))
+	defer srv.Close()
+
+	got, err := NewClient(srv.URL).ScrapeMultiScenes(context.Background(), "https://box.test/graphql", nil)
+	if err != nil || got != nil {
+		t.Errorf("got (%v, %v), want (nil, nil)", got, err)
+	}
+	if len(cap.reqs) != 0 {
+		t.Errorf("made %d request(s) for no scenes", len(cap.reqs))
+	}
+	if _, err := NewClient(srv.URL).ScrapeMultiScenes(context.Background(), "", []string{"1"}); err == nil {
+		t.Error("no endpoint was allowed")
+	}
+}

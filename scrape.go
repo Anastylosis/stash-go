@@ -179,6 +179,47 @@ func (c *Client) ScrapeSceneByID(ctx context.Context, endpoint, sceneID string) 
 	return c.scrapeScenes(ctx, endpoint, map[string]any{"scene_id": sceneID}, sceneID)
 }
 
+// ScrapeMultiScenes asks a stash-box about many scenes at once, each matched
+// on its files' fingerprints the way [Client.ScrapeSceneByID] matches one.
+//
+// The result is parallel to sceneIDs: one entry per scene, in the order given,
+// holding that scene's candidates. A scene the stash-box does not recognise
+// gets an empty entry rather than being dropped, so the two slices can be
+// walked together.
+//
+// This is the call to reach for when identifying a whole library. Stash
+// queries the stash-box once per scene either way, but a batch costs one HTTP
+// round trip instead of one per scene, and Stash's own
+// max_requests_per_minute paces the upstream calls — so the batch size is a
+// question of how much work to lose if the request fails, not of politeness.
+// Twenty or so is comfortable.
+func (c *Client) ScrapeMultiScenes(ctx context.Context, endpoint string, sceneIDs []string) ([][]ScrapedScene, error) {
+	if endpoint == "" {
+		return nil, fmt.Errorf("stash: scraping scenes: no endpoint")
+	}
+	if len(sceneIDs) == 0 {
+		return nil, nil
+	}
+	data, err := c.do(ctx, graphqlRequest{
+		Query: `query($source: ScraperSourceInput!, $input: ScrapeMultiScenesInput!) {
+			scrapeMultiScenes(source: $source, input: $input) {` + scrapedSceneFields + `} }`,
+		Variables: map[string]any{
+			"source": map[string]any{"stash_box_endpoint": endpoint},
+			"input":  map[string]any{"scene_ids": sceneIDs},
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("stash: scraping %d scenes: %w", len(sceneIDs), err)
+	}
+	var result struct {
+		ScrapeMultiScenes [][]ScrapedScene `json:"scrapeMultiScenes"`
+	}
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, fmt.Errorf("stash: decoding scraped scenes: %w", err)
+	}
+	return result.ScrapeMultiScenes, nil
+}
+
 const scrapedSceneFields = `
 	title code date details director urls image duration remote_site_id
 	studio { name stored_id remote_site_id url }
