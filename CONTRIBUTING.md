@@ -62,7 +62,7 @@ module and the reason it is safe to pull into anything.
 
 **A field the server lacks fails the whole query**, not just that field. So a
 new scene field goes in `SceneFields` only if every supported server
-(Stash 0.20+) has it. Anything newer goes behind a probe — see
+(Stash 0.30+) has it. Anything newer goes behind a probe — see
 `sceneSelection` and `WithCaptions` for the shape: the option is off by
 default, so a caller that does not want the field pays no introspection
 request to find out it exists.

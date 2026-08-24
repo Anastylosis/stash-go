@@ -81,13 +81,17 @@ fingerprints qualify — a consumer doing duplicate detection needs hashes and
 resolutions, and a consumer pushing metadata pays a few hundred bytes per scene
 it ignores.
 
-`groups` and `play_count` are deliberately absent. They arrived in Stash
-0.25–0.27, and including them would raise the floor for everyone to support one
-consumer. `galleries` is in, because it is old enough to cost nothing.
+`groups` and `play_count` are deliberately absent. The floor no longer rules
+them out — both predate it — but the reason to keep the set small survives it:
+every consumer pays for every field on every scene, and nothing here has needed
+either. `galleries` is in, because it was already in.
 
-**The floor is Stash 0.20**, where `files { … }` replaced the flat path/size
-fields — the selection set could not work at all before it. A consumer needing
-a newer field asks `Supports` and reaches for `Execute`.
+**The floor is Stash 0.30.** It was 0.20 for as long as the set asked only for
+the `files { … }` record that arrived there, and it moved when the counts and
+calls worth wrapping — the `stats` totals, groups as their own entity — turned
+out to sit above it. Below 0.30, a query is as likely to fail on a renamed
+field as to work. A consumer needing something newer still asks `Supports` and
+reaches for `Execute`.
 
 The set is exported as `SceneFields` so a consumer writing its own query still
 decodes into `Scene` completely. A field list copied by hand is a field list

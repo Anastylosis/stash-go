@@ -843,9 +843,10 @@ wants a list, and the first image is the one to keep.
 ## Older servers
 
 Verified against Stash 0.31.1, schema 85 — the version the live suite runs
-against, and the only one this has been checked on. Older servers are likely
-to work and are not tested; the shared selection set asks for the `files { … }`
-record introduced in 0.20, and everything in it has existed since.
+against, and the only one this has been checked on. **The supported floor is
+Stash 0.30**: 0.30 and 0.31 are expected to work and only the latter is
+tested. Below 0.30 the package makes no claim — fields this asks for by name
+were renamed or absent, and a renamed field fails the whole query.
 
 Asking for a field the schema lacks fails the **whole** query, not just that
 field:
