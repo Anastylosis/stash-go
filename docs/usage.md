@@ -636,6 +636,21 @@ writing it, and keep what is there.
 
 ## Administering the server
 
+### How big is the library
+
+```go
+stats, err := c.LibraryStats(ctx)
+```
+
+The server's own tallies, answered from the database in one query — sizing a
+library this way costs one round trip where counting the same thing through
+`FindScenes` pages through every scene.
+
+`ScenesSize` is bytes and `ScenesDuration` seconds, both `float64` because
+that is what the schema declares and a large library overflows the precision
+an int would give them. The counts cover what Stash has indexed, which is not
+what is on disk: a file the last scan never reached is not in them.
+
 ### What state is it in
 
 `Ping` succeeds against a server that is showing its setup wizard or refusing

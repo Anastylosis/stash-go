@@ -270,3 +270,55 @@ func (c *Client) apiKeyMutation(ctx context.Context, clear bool) (string, error)
 	}
 	return result.Key, nil
 }
+
+// LibraryStats is what the server counts about the library as a whole. Every
+// field is the server's own tally, computed from the database rather than by
+// walking the scenes.
+//
+// The counts cover what Stash has indexed, which is not the same as what is
+// on disk: a file the last scan did not reach is not here.
+type LibraryStats struct {
+	SceneCount int `json:"scene_count"`
+	// ScenesSize is the total size of every scene's files, in bytes.
+	ScenesSize float64 `json:"scenes_size"`
+	// ScenesDuration is the total runtime of every scene, in seconds.
+	ScenesDuration float64 `json:"scenes_duration"`
+	ImageCount     int     `json:"image_count"`
+	ImagesSize     float64 `json:"images_size"`
+	GalleryCount   int     `json:"gallery_count"`
+	PerformerCount int     `json:"performer_count"`
+	StudioCount    int     `json:"studio_count"`
+	GroupCount     int     `json:"group_count"`
+	TagCount       int     `json:"tag_count"`
+
+	// TotalPlayDuration is how long scenes have been watched for in total,
+	// in seconds, and ScenesPlayed how many have been watched at all.
+	TotalOCount       int     `json:"total_o_count"`
+	TotalPlayCount    int     `json:"total_play_count"`
+	TotalPlayDuration float64 `json:"total_play_duration"`
+	ScenesPlayed      int     `json:"scenes_played"`
+}
+
+// LibraryStats reports the server's own counts for the library.
+//
+// This is the cheap way to size a library before doing anything with it: one
+// query, answered from the database, where counting the same thing through
+// [Client.FindScenes] would page through every scene.
+func (c *Client) LibraryStats(ctx context.Context) (LibraryStats, error) {
+	data, err := c.do(ctx, graphqlRequest{Query: `{ stats {
+		scene_count scenes_size scenes_duration
+		image_count images_size gallery_count
+		performer_count studio_count group_count tag_count
+		total_o_count total_play_count total_play_duration scenes_played
+	} }`})
+	if err != nil {
+		return LibraryStats{}, fmt.Errorf("stash: library stats: %w", err)
+	}
+	var result struct {
+		Stats LibraryStats `json:"stats"`
+	}
+	if err := json.Unmarshal(data, &result); err != nil {
+		return LibraryStats{}, fmt.Errorf("stash: decoding library stats: %w", err)
+	}
+	return result.Stats, nil
+}

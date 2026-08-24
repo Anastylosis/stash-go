@@ -186,3 +186,34 @@ func TestClearAPIKeySaysSo(t *testing.T) {
 		t.Errorf("clear = %v, want true", got)
 	}
 }
+
+func TestLibraryStatsDecodesCounts(t *testing.T) {
+	_, c := server(t, reply(`{"data":{"stats":{
+		"scene_count":61218,"scenes_size":7.3812687965143e+13,"scenes_duration":9.274805869e+07,
+		"image_count":0,"images_size":0,"gallery_count":0,
+		"performer_count":4307,"studio_count":1933,"group_count":0,"tag_count":4853,
+		"total_o_count":2,"total_play_count":1073,"total_play_duration":77306.408,"scenes_played":1019
+	}}}`))
+
+	got, err := c.LibraryStats(context.Background())
+	if err != nil {
+		t.Fatalf("LibraryStats: %v", err)
+	}
+	if got.SceneCount != 61218 {
+		t.Errorf("SceneCount = %d, want 61218", got.SceneCount)
+	}
+	// Sizes and durations are Float in the schema and big enough to arrive
+	// in exponent notation — decoding either into an int would truncate.
+	if got.ScenesSize != 7.3812687965143e+13 {
+		t.Errorf("ScenesSize = %v", got.ScenesSize)
+	}
+	if got.ScenesDuration != 9.274805869e+07 {
+		t.Errorf("ScenesDuration = %v", got.ScenesDuration)
+	}
+	if got.PerformerCount != 4307 || got.StudioCount != 1933 || got.TagCount != 4853 {
+		t.Errorf("entity counts = %+v", got)
+	}
+	if got.TotalPlayDuration != 77306.408 || got.ScenesPlayed != 1019 {
+		t.Errorf("playback totals = %+v", got)
+	}
+}
