@@ -414,3 +414,63 @@ func TestSetPrimaryFileRefusesEmptyArguments(t *testing.T) {
 		t.Error("no file id was allowed")
 	}
 }
+
+// The two file-removal calls are not synonyms, and sending the wrong mutation
+// is invisible until someone notices the videos are still there (or gone).
+func TestFileRemovalCallsSendDistinctMutations(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		call     func(*Client) error
+		mutation string
+		notThis  string
+	}{
+		{
+			name:     "DeleteFiles deletes the video",
+			call:     func(c *Client) error { return c.DeleteFiles(context.Background(), "7") },
+			mutation: "deleteFiles",
+			notThis:  "destroyFiles",
+		},
+		{
+			name:     "DestroyFiles only forgets the record",
+			call:     func(c *Client) error { return c.DestroyFiles(context.Background(), "7") },
+			mutation: "destroyFiles",
+			notThis:  "deleteFiles",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cap := &capture{}
+			srv := httptest.NewServer(cap.handler(`{"data":{"` + tc.mutation + `":true}}`))
+			defer srv.Close()
+
+			if err := tc.call(NewClient(srv.URL)); err != nil {
+				t.Fatalf("%s: %v", tc.name, err)
+			}
+			q := cap.reqs[0].Query
+			if !strings.Contains(q, tc.mutation) {
+				t.Errorf("query did not call %s: %s", tc.mutation, q)
+			}
+			// destroyFiles contains neither substring of the other, so this
+			// catches a swap in either direction.
+			if strings.Contains(q, tc.notThis) {
+				t.Errorf("query called %s, which does the opposite: %s", tc.notThis, q)
+			}
+		})
+	}
+}
+
+func TestFileRemovalCallsIgnoreAnEmptyList(t *testing.T) {
+	cap := &capture{}
+	srv := httptest.NewServer(cap.handler(`{"data":{}}`))
+	defer srv.Close()
+	c := NewClient(srv.URL)
+
+	if err := c.DeleteFiles(context.Background()); err != nil {
+		t.Errorf("DeleteFiles: %v", err)
+	}
+	if err := c.DestroyFiles(context.Background()); err != nil {
+		t.Errorf("DestroyFiles: %v", err)
+	}
+	if len(cap.reqs) != 0 {
+		t.Errorf("made %d request(s) for no files", len(cap.reqs))
+	}
+}

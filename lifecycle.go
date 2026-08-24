@@ -31,7 +31,7 @@ type MergeOptions struct {
 //
 // This deletes database records, not files on disk: the sources' files are
 // reattached to the destination. Deleting a file is [Client.DeleteScene] with
-// DeleteFile set, or [Client.DestroyFiles].
+// DeleteFile set, or [Client.DeleteFiles].
 //
 // Not reversible.
 func (c *Client) MergeScenes(ctx context.Context, destinationID string, sourceIDs []string, values *SceneUpdate, opts MergeOptions) error {
@@ -229,11 +229,36 @@ func (c *Client) MoveFiles(ctx context.Context, fileIDs []string, to MoveTarget)
 	return nil
 }
 
-// DestroyFiles deletes files from disk and removes their records.
+// DeleteFiles deletes the files from disk and removes their records.
 //
-// Permanent, and it says so plainly because the name does not: this is not
-// "forget about these files", it is "delete these videos". [Client.DeleteScene]
-// without DeleteFile is the reversible option.
+// Permanent, and it says so plainly because the name does not distinguish
+// itself from [Client.DestroyFiles]: this one is "delete these videos".
+// Stash offers both mutations and they are not synonyms — the other keeps
+// the file.
+func (c *Client) DeleteFiles(ctx context.Context, fileIDs ...string) error {
+	if len(fileIDs) == 0 {
+		return nil
+	}
+	_, err := c.do(ctx, graphqlRequest{
+		Query:     `mutation($ids: [ID!]!) { deleteFiles(ids: $ids) }`,
+		Variables: map[string]any{"ids": fileIDs},
+	})
+	if err != nil {
+		return fmt.Errorf("stash: deleting %d file(s): %w", len(fileIDs), err)
+	}
+	return nil
+}
+
+// DestroyFiles removes the files' records from the database and leaves the
+// videos on disk.
+//
+// This is the reversible one, and the name is the opposite way round from
+// what that suggests: Stash's own description is "deletes file entries from
+// the database without deleting the files from the filesystem". A later scan
+// finds the files again and re-adds them, so this un-does itself unless the
+// files are moved out of a library path first.
+//
+// [Client.DeleteFiles] is the one that deletes the video.
 func (c *Client) DestroyFiles(ctx context.Context, fileIDs ...string) error {
 	if len(fileIDs) == 0 {
 		return nil

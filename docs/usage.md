@@ -565,13 +565,22 @@ the file first and append if adding one is what you meant.
 
 ### Deleting files
 
+Stash has two mutations here and they are not synonyms. The names suggest the
+opposite of what they do, so both are wrapped under names that match Stash's
+own, and the difference is spelled out rather than left to the reader:
+
 ```go
-err := c.DestroyFiles(ctx, fileIDs...)
+err := c.DeleteFiles(ctx, fileIDs...)    // deletes the videos from disk
+err := c.DestroyFiles(ctx, fileIDs...)   // forgets the records, keeps the videos
 ```
 
-Deletes the videos from disk and removes their records. Permanent. The name
-does not say so, which is why this paragraph does: `DeleteScene` without
-`DeleteFile` is the reversible option.
+`DeleteFiles` is permanent. `DestroyFiles` is the reversible one — Stash's own
+description is "deletes file entries from the database without deleting the
+files from the filesystem", so the next scan finds those files again and
+re-adds them. Reach for it when you want Stash to forget a file you are about
+to move yourself, and expect it to come back otherwise.
+
+`DeleteScene` without `DeleteFile` is the equivalent at the scene level.
 
 ## Media the API will not hand over
 
