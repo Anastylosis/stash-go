@@ -258,22 +258,10 @@ func TestLiveUnknownFilterTargetsAreErrors(t *testing.T) {
 // fetch breaks at once.
 func TestLiveCaptionsSelection(t *testing.T) {
 	c := client(t)
-	ctx := context.Background()
+	scenes := sample(t, c, 25)
 
-	supported, err := c.Supports(ctx, "captions")
-	if err != nil {
-		t.Fatalf("Supports: %v", err)
-	}
-	t.Logf("Scene.captions supported: %v", supported)
-
-	withCaptions := NewClient(stashURL(), WithAPIKey(os.Getenv("STASH_API_KEY")), WithCaptions())
-	scenes, _, err := withCaptions.FindScenes(ctx, SceneFilter{}, 1, 5)
-	if err != nil {
-		t.Fatalf("FindScenes with captions: %v", err)
-	}
-	if len(scenes) == 0 {
-		t.Skip("no scenes in Stash")
-	}
+	// Captions are in the shared selection set, so every scene query carries
+	// them and a scene with subtitles decodes without asking for anything.
 	for _, s := range scenes {
 		for _, cap := range s.Captions {
 			if cap.LanguageCode == "" {
@@ -283,16 +271,24 @@ func TestLiveCaptionsSelection(t *testing.T) {
 	}
 }
 
-// A client without the option must still decode scenes, and must leave
-// Captions nil — the default path is the one every existing caller is on.
-func TestLiveScenesWithoutCaptionsOption(t *testing.T) {
+// The widened selection set must decode against the real server, not just the
+// stubs: a field named wrongly fails the whole query, and the count of scenes
+// that came back is the only thing that would say so.
+func TestLiveWidenedSceneFields(t *testing.T) {
 	c := client(t)
-	scenes := sample(t, c, 3)
+	scenes := sample(t, c, 25)
+
 	for _, s := range scenes {
-		if s.Captions != nil {
-			t.Errorf("scene %s carried captions without WithCaptions", s.ID)
+		if s.PlayCount < 0 || s.PlayDuration < 0 {
+			t.Errorf("scene %s has negative playback counters: %+v", s.ID, s)
+		}
+		for _, g := range s.Groups {
+			if g.Group.ID == "" {
+				t.Errorf("scene %s is in a group with no id", s.ID)
+			}
 		}
 	}
+	t.Logf("decoded %d scenes with captions, groups and playback", len(scenes))
 }
 
 func TestLivePluginSettings(t *testing.T) {
@@ -537,6 +533,85 @@ func TestLiveDLNAStatus(t *testing.T) {
 // check is that the shapes they send exist — a field the schema lacks fails
 // the whole request, so this is the difference between a call that works and
 // one that fails the first time somebody means it.
+func TestLiveLibraryStats(t *testing.T) {
+	c := client(t)
+
+	stats, err := c.LibraryStats(context.Background())
+	if err != nil {
+		t.Fatalf("LibraryStats: %v", err)
+	}
+	if stats.SceneCount <= 0 {
+		t.Fatalf("scene_count = %d, want a library with scenes", stats.SceneCount)
+	}
+	// A library with scenes has a size and a duration; zero for either means
+	// the field decoded into the wrong type rather than that the videos are
+	// empty.
+	if stats.ScenesSize <= 0 || stats.ScenesDuration <= 0 {
+		t.Errorf("scenes_size = %v, scenes_duration = %v", stats.ScenesSize, stats.ScenesDuration)
+	}
+	t.Logf("%d scenes, %.1f GiB, %.0f hours",
+		stats.SceneCount, stats.ScenesSize/(1<<30), stats.ScenesDuration/3600)
+}
+
+func TestLiveFindDuplicateScenes(t *testing.T) {
+	c := client(t)
+
+	// distance 0 with a tight duration window is the cheapest form of the
+	// query and the least likely to return anything surprising.
+	groups, err := c.FindDuplicateScenes(context.Background(), 0, 1)
+	if err != nil {
+		t.Fatalf("FindDuplicateScenes: %v", err)
+	}
+	for _, g := range groups {
+		if len(g) < 2 {
+			t.Errorf("a duplicate group holds %d scene(s), want at least 2", len(g))
+		}
+		for _, s := range g {
+			if s.ID == "" {
+				t.Errorf("a grouped scene decoded without an id")
+			}
+		}
+	}
+	t.Logf("%d duplicate group(s) at distance 0", len(groups))
+}
+
+func TestLiveMultiFileFilter(t *testing.T) {
+	c := client(t)
+	ctx := context.Background()
+
+	yes, no := true, false
+	multi, multiTotal, err := c.FindScenes(ctx, SceneFilter{MultiFile: &yes}, 1, 10)
+	if err != nil {
+		t.Fatalf("FindScenes(MultiFile: true): %v", err)
+	}
+	for _, s := range multi {
+		if len(s.Files) < 2 {
+			t.Errorf("scene %s came back as multi-file with %d file(s)", s.ID, len(s.Files))
+		}
+	}
+
+	single, singleTotal, err := c.FindScenes(ctx, SceneFilter{MultiFile: &no}, 1, 10)
+	if err != nil {
+		t.Fatalf("FindScenes(MultiFile: false): %v", err)
+	}
+	for _, s := range single {
+		if len(s.Files) != 1 {
+			t.Errorf("scene %s came back as single-file with %d file(s)", s.ID, len(s.Files))
+		}
+	}
+
+	// The two must partition the library: a filter that silently matched
+	// everything would pass both loops above.
+	_, all, err := c.FindScenes(ctx, SceneFilter{}, 1, 1)
+	if err != nil {
+		t.Fatalf("FindScenes: %v", err)
+	}
+	if multiTotal+singleTotal != all {
+		t.Errorf("multi(%d) + single(%d) = %d, want the library total %d",
+			multiTotal, singleTotal, multiTotal+singleTotal, all)
+	}
+}
+
 func TestLiveAdminSchemaShapes(t *testing.T) {
 	c := client(t)
 
@@ -544,12 +619,27 @@ func TestLiveAdminSchemaShapes(t *testing.T) {
 		typeName string
 		want     []string
 	}{
-		{"Query", []string{"systemStatus", "version", "latestversion", "logs", "dlnaStatus", "configuration"}},
+		{"Query", []string{"systemStatus", "version", "latestversion", "logs", "dlnaStatus", "configuration",
+			"findDuplicateScenes", "stats", "scrapeMultiScenes"}},
 		{"Mutation", []string{
 			"configureGeneral", "generateAPIKey", "migrate", "migrateBlobs", "migrateHashNaming",
 			"migrateSceneScreenshots", "anonymiseDatabase", "downloadFFMpeg", "optimiseDatabase",
 			"enableDLNA", "disableDLNA", "addTempDLNAIP", "removeTempDLNAIP",
+			// Not synonyms: deleteFiles removes the video, destroyFiles only
+			// the record. Both must exist for the two wrappers to mean what
+			// they say.
+			"deleteFiles", "destroyFiles", "sceneMerge",
 		}},
+		{"StatsResultType", []string{
+			"scene_count", "scenes_size", "scenes_duration", "image_count", "images_size",
+			"gallery_count", "performer_count", "studio_count", "group_count", "tag_count",
+			"total_o_count", "total_play_count", "total_play_duration", "scenes_played",
+		}},
+		{"SceneMergeInput", []string{"source", "destination", "values", "play_history", "o_history"}},
+		{"SceneUpdateInput", []string{"id", "primary_file_id"}},
+		{"SceneFilterType", []string{"file_count", "stash_id_endpoint", "path", "date"}},
+		{"ScrapeMultiScenesInput", []string{"scene_ids"}},
+		{"Scene", []string{"captions", "groups", "play_count", "play_duration", "last_played_at", "resume_time"}},
 		{"SystemStatus", []string{"status", "databaseSchema", "appSchema", "databasePath", "configPath"}},
 		{"Version", []string{"version", "hash", "build_time"}},
 		{"LogEntry", []string{"time", "level", "message"}},
