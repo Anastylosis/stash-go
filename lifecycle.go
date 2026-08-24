@@ -264,7 +264,7 @@ func (c *Client) FindSceneByHash(ctx context.Context, algorithm, hash string) (s
 		return nil, false, fmt.Errorf("stash: finding scene by hash: %q is not oshash or checksum", algorithm)
 	}
 	data, err := c.do(ctx, graphqlRequest{
-		Query: `query($input: SceneHashInput!) { findSceneByHash(input: $input) {` + c.sceneSelection(ctx) + `} }`,
+		Query: `query($input: SceneHashInput!) { findSceneByHash(input: $input) {` + SceneFields + `} }`,
 		Variables: map[string]any{"input": map[string]any{
 			field: hash,
 		}},
@@ -296,7 +296,7 @@ func (c *Client) FindScenesByPathRegex(ctx context.Context, pattern string, page
 		return nil, 0, fmt.Errorf("stash: finding scenes by path: no pattern")
 	}
 	data, err := c.do(ctx, graphqlRequest{
-		Query: `query($filter: FindFilterType) { findScenesByPathRegex(filter: $filter) { count scenes {` + c.sceneSelection(ctx) + `} } }`,
+		Query: `query($filter: FindFilterType) { findScenesByPathRegex(filter: $filter) { count scenes {` + SceneFields + `} } }`,
 		Variables: map[string]any{"filter": map[string]any{
 			"q": pattern, "page": page, "per_page": perPage,
 			"sort": "path", "direction": "ASC",

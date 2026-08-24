@@ -3,9 +3,7 @@ package stash
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"strings"
 )
 
 // PackageType selects which of Stash's two package managers a call talks to.
@@ -15,12 +13,6 @@ const (
 	PackagePlugin  PackageType = "Plugin"
 	PackageScraper PackageType = "Scraper"
 )
-
-// ErrNoPackageManager means the server predates Stash's package manager,
-// which arrived in 0.25. The whole of this file needs it — unlike a missing
-// scene field, which costs an unrelated query its response, an absent
-// mutation only fails the call that asked for it.
-var ErrNoPackageManager = errors.New("stash: server has no package manager (needs Stash 0.25 or newer)")
 
 // PackageSource is one index a package manager installs from, as configured
 // in the server's settings.
@@ -84,7 +76,7 @@ func (c *Client) PackageSources(ctx context.Context, t PackageType) ([]PackageSo
 		Query: `{ configuration { general { ` + field + ` { name url local_path } } } }`,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("stash: reading package sources: %w", packageErr(err))
+		return nil, fmt.Errorf("stash: reading package sources: %w", err)
 	}
 	var result struct {
 		Configuration struct {
@@ -119,7 +111,7 @@ func (c *Client) AvailablePackages(ctx context.Context, t PackageType, sourceURL
 func (c *Client) packages(ctx context.Context, field, query string, vars map[string]any) ([]Package, error) {
 	data, err := c.do(ctx, graphqlRequest{Query: query, Variables: vars})
 	if err != nil {
-		return nil, fmt.Errorf("stash: reading %s: %w", field, packageErr(err))
+		return nil, fmt.Errorf("stash: reading %s: %w", field, err)
 	}
 	var result map[string][]Package
 	if err := json.Unmarshal(data, &result); err != nil {
@@ -177,34 +169,11 @@ func (c *Client) packageJob(ctx context.Context, mutation string, t PackageType,
 		Variables: map[string]any{"type": string(t), "packages": specs},
 	})
 	if err != nil {
-		return "", fmt.Errorf("stash: %s: %w", mutation, packageErr(err))
+		return "", fmt.Errorf("stash: %s: %w", mutation, err)
 	}
 	var result map[string]string
 	if err := json.Unmarshal(data, &result); err != nil {
 		return "", fmt.Errorf("stash: decoding %s job id: %w", mutation, err)
 	}
 	return result[mutation], nil
-}
-
-// packageErr recognises the answer a server without a package manager gives.
-// Left as a plain "Cannot query field" it reads like a bug in this library
-// rather than a server four releases too old.
-func packageErr(err error) error {
-	var apiErr *APIError
-	if !errors.As(err, &apiErr) {
-		return err
-	}
-	for _, e := range apiErr.Errors {
-		if isUnknownField(e.Message) {
-			return fmt.Errorf("%w: %v", ErrNoPackageManager, err)
-		}
-	}
-	return err
-}
-
-func isUnknownField(msg string) bool {
-	// GraphQL's own wording for a field the schema lacks. Matching on the
-	// text is unpleasant, but Extensions carries GRAPHQL_VALIDATION_FAILED
-	// for every validation failure alike, so it does not separate them.
-	return strings.Contains(msg, "Cannot query field")
 }

@@ -47,46 +47,50 @@ database backup; submitting to a stash-box; and administering the server
 itself — status, logs, general and interface settings, the API key, the
 database migrations and DLNA.
 
-That is **29 of Stash's 62 queries and 55 of its 125 mutations**. The rest is
-mostly galleries, images, groups and markers — whole object types this has
-never needed, and writing them untested would be worse than leaving them out.
-`Execute` reaches anything not wrapped, using the same transport, auth and
-error handling.
+That is **32 of Stash's 62 queries and 60 of its 125 mutations**.
 
-Scene creation is the gap on the write side: this reads and reshapes a library
-Stash already scanned, and has never needed to invent a scene from nothing.
+The goal is the whole API. What is left is not a boundary, it is a to-do list,
+and it is mostly one shape: galleries, images, groups and markers account for
+16 of the 30 remaining queries and 33 of the 65 remaining mutations — object
+types nothing has needed yet, so nothing has been written and tested for them.
+The rest is the URL scrapers, a handful of per-object bulk updates, the
+playback and o-counter calls, and whole-library import/export.
+
+Two things are deliberate rather than pending. Raw SQL (`querySQL`, `execSQL`)
+will not be wrapped: arbitrary SQL against somebody's library is a footgun with
+no matching benefit. Neither will `setup`, which configures a server that has
+none, naming directories a client cannot see or validate.
+
+Until a call is wrapped, `Execute` reaches it with the same transport, auth and
+error handling as the typed methods.
 
 ## Which Stash it works against
 
-**Verified against Stash 0.31.1 (schema 85).** That is the version the live
-suite runs on, and the only one anything has been checked against.
+**Stash 0.31.1 (schema 85).** That is what this targets, what the live suite
+runs against, and the only version anything has been checked on.
 
-Older servers are *likely* to work and are not tested. Two things found while
-building this are the reason for the hedge: Stash's date criterion requires a
-`value` even when the modifier ignores it, and `career_start` is declared
-`String` although it holds a year. Shapes like those drift between releases,
-and a mismatch is not subtle — GraphQL fails the **whole** query when asked
-for a field the schema lacks, so one wrong field costs the entire response.
+Older servers are not supported. This is a deliberate simplification rather
+than an untested hedge: the selection sets name fields directly, and GraphQL
+fails the **whole** query when asked for one the schema lacks, so a renamed
+field costs the entire response rather than itself. Shapes do drift — Stash's
+date criterion requires a `value` even when the modifier ignores it, and
+`career_start` is declared `String` although it holds a year — and chasing
+them across releases bought less than pinning to one did.
 
 Where a field is known to vary, ask first:
 
 ```go
-if ok, _ := c.Supports(ctx, "captions"); ok {
-    // safe to include it
+if ok, _ := c.Supports(ctx, "groups"); ok {
+    // safe to name it in your own Execute query
 }
 ```
 
-Introspection runs once per client and is cached. `Scene.captions` is the
-field this matters most for, so it has an option of its own — off by default,
-because honouring it costs an introspection request a caller who does not want
-captions should not pay:
+Introspection runs once per client and is cached. It is there for a consumer
+reaching past the wrapped surface with `Execute`, not for the wrapped calls
+themselves — those name what the target server has. `Scene.captions` used to
+be gated behind it and an opt-in option; both are gone, and captions are in
+the shared selection set with everything else.
 
-```go
-c := stash.NewClient(url, stash.WithCaptions())
-```
-
-With the option set and the field absent, scene queries run unchanged and
-`Scene.Captions` stays nil rather than erroring.
 
 ## Three things that surprise people
 

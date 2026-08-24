@@ -74,24 +74,24 @@ each caller ask for exactly what it uses, at the cost of a query-building API,
 a Scene type full of fields that may or may not be populated, and no single
 place to check what this package requires of a server.
 
-So the list is fixed, and the rule for adding to it is: the field must exist in
-every supported server version, and it must be cheap. Scene scalars (`code`,
-`director`, `rating100`, `o_counter`) and the video-file record including
-fingerprints qualify — a consumer doing duplicate detection needs hashes and
-resolutions, and a consumer pushing metadata pays a few hundred bytes per scene
-it ignores.
+So the list is fixed, and the rule for adding to it is that the field must be
+cheap and belong to the scene itself. Scene scalars (`code`, `director`,
+`rating100`, `o_counter`), the video-file record including fingerprints,
+captions, group membership and the playback counters all qualify — a consumer
+doing duplicate detection needs hashes and resolutions, and one pushing
+metadata pays a few hundred bytes per scene it ignores.
 
-`groups` and `play_count` are deliberately absent. The floor no longer rules
-them out — both predate it — but the reason to keep the set small survives it:
-every consumer pays for every field on every scene, and nothing here has needed
-either. `galleries` is in, because it was already in.
+The rule used to have a second half — the field had to exist on every
+supported server — and that is what kept `groups`, `play_count` and `captions`
+out. Pinning support to one current release retired it. Captions in particular
+were behind an introspection probe and an opt-in option for exactly this
+reason; both are gone, and the field is simply in the set.
 
-**The floor is Stash 0.30.** It was 0.20 for as long as the set asked only for
-the `files { … }` record that arrived there, and it moved when the counts and
-calls worth wrapping — the `stats` totals, groups as their own entity — turned
-out to sit above it. Below 0.30, a query is as likely to fail on a renamed
-field as to work. A consumer needing something newer still asks `Supports` and
-reaches for `Execute`.
+**The target is Stash 0.31.1, schema 85** — the release this is built and
+tested against. Older servers are not supported and not worked around: a field
+this asks for by name may have been renamed or absent, and GraphQL fails the
+whole query rather than the field. `Supports` remains for a consumer that
+wants to ask before reaching for something through `Execute`.
 
 The set is exported as `SceneFields` so a consumer writing its own query still
 decodes into `Scene` completely. A field list copied by hand is a field list
@@ -121,14 +121,18 @@ for something else writes the two or three methods it actually calls and accepts
 anything satisfying them. A shared interface package would be a coordination
 point with no benefit.
 
-**It does not wrap the whole schema.** The covered surface is scenes and their
-files, the performer/studio/tag entities, saved filters, plugins and packages,
-the metadata tasks, backup, stash-box submission, and the server's own
-administration — 29 of 62 queries and 55 of 125 mutations. What is missing is mostly galleries, images, groups and
-markers: object types nothing has needed, where wrapping them untested would
-be worse than leaving them out. `Execute` runs any query against the same
-transport, auth and error handling, so an unwrapped corner is an inconvenience
-rather than a wall.
+**It does not wrap the whole schema yet.** The covered surface is scenes and
+their files, the performer/studio/tag entities, saved filters, plugins and
+packages, the metadata tasks, backup, stash-box submission, and the server's
+own administration — 32 of 62 queries and 60 of 125 mutations.
+
+The whole API is the goal, so the remainder is a to-do list rather than a
+boundary. It is mostly one shape: galleries, images, groups and markers are
+about half of what is left, object types nothing has needed and therefore
+nothing has tested. That is the constraint, not appetite — an untested wrapper
+is worse than none, because a caller cannot tell the two apart until it fails.
+`Execute` runs any query against the same transport, auth and error handling,
+so an unwrapped corner is an inconvenience rather than a wall.
 
 **It does not hand you raw SQL.** Stash exposes `querySQL` and `execSQL`.
 A Go client offering arbitrary SQL against somebody's library is a footgun

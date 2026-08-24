@@ -60,16 +60,18 @@ attribute later.
 **No dependencies.** Standard library only. It is a stated property of the
 module and the reason it is safe to pull into anything.
 
-**A field the server lacks fails the whole query**, not just that field. So a
-new scene field goes in `SceneFields` only if every supported server
-(Stash 0.30+) has it. Anything newer goes behind a probe — see
-`sceneSelection` and `WithCaptions` for the shape: the option is off by
-default, so a caller that does not want the field pays no introspection
-request to find out it exists.
+**A field the server lacks fails the whole query**, not just that field. The
+target is one release — Stash 0.31.1 — so a new scene field goes in
+`SceneFields` if that server has it and it is cheap. There is no probe to hide
+behind any more, and adding one back is a decision about supporting a second
+server version, not about a field.
 
-Prefer widening `Execute`'s reach over wrapping a call that is already easy
-to write by hand. Wrapping earns its place when the shape is fiddly, the
-failure mode is silent, or the result needs decoding into an existing type.
+**The goal is the whole API.** A Stash call that is not wrapped is a to-do,
+not a boundary — the two standing exceptions are raw SQL and `setup`, both
+argued in [docs/design.md](docs/design.md). Wrapping a call means a typed
+signature, the errors it can really return, a doc comment saying what it costs
+and what it cannot undo, and an httptest-driven test. An untested wrapper is
+worse than none, which is the only reason the list is not finished.
 
 ## Documentation
 

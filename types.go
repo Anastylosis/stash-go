@@ -2,28 +2,46 @@ package stash
 
 // Scene is a scene as returned by findScene / findScenes.
 type Scene struct {
-	ID         string      `json:"id"`
-	Title      string      `json:"title"`
-	Code       string      `json:"code"`
-	Date       string      `json:"date"`
-	Details    string      `json:"details"`
-	Director   string      `json:"director"`
-	URLs       []string    `json:"urls"`
-	Rating100  *int        `json:"rating100"`
-	Organized  bool        `json:"organized"`
-	OCounter   int         `json:"o_counter"`
-	Files      []File      `json:"files"`
-	Tags       []Tag       `json:"tags"`
-	Performers []Performer `json:"performers"`
-	Studio     *Studio     `json:"studio"`
-	StashIDs   []StashID   `json:"stash_ids"`
-	Galleries  []Gallery   `json:"galleries"`
-	// Captions is populated only when the server's schema has
-	// Scene.captions — the scene queries probe for it once and add the
-	// field when it is there (see sceneSelection). nil therefore means
-	// either "this scene has no captions" or "this server is too old to
-	// say"; [Client.Supports] tells the two apart when it matters.
-	Captions []Caption `json:"captions"`
+	ID         string       `json:"id"`
+	Title      string       `json:"title"`
+	Code       string       `json:"code"`
+	Date       string       `json:"date"`
+	Details    string       `json:"details"`
+	Director   string       `json:"director"`
+	URLs       []string     `json:"urls"`
+	Rating100  *int         `json:"rating100"`
+	Organized  bool         `json:"organized"`
+	OCounter   int          `json:"o_counter"`
+	Files      []File       `json:"files"`
+	Tags       []Tag        `json:"tags"`
+	Performers []Performer  `json:"performers"`
+	Studio     *Studio      `json:"studio"`
+	StashIDs   []StashID    `json:"stash_ids"`
+	Galleries  []Gallery    `json:"galleries"`
+	Captions   []Caption    `json:"captions"`
+	Groups     []SceneGroup `json:"groups"`
+
+	// PlayDuration is how long this scene has been watched for in total,
+	// in seconds, and ResumeTime where playback left off.
+	PlayCount    int     `json:"play_count"`
+	PlayDuration float64 `json:"play_duration"`
+	LastPlayedAt *string `json:"last_played_at"`
+	ResumeTime   float64 `json:"resume_time"`
+}
+
+// SceneGroup is a scene's membership of a group — what Stash called a movie
+// before 0.28. SceneIndex is the scene's place in it, and is nil for a group
+// that does not order its scenes.
+type SceneGroup struct {
+	Group      Group `json:"group"`
+	SceneIndex *int  `json:"scene_index"`
+}
+
+// Group is a Stash group, as a scene reports its membership of one. Only the
+// fields the scene selection asks for.
+type Group struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 // HasStashID reports whether the scene carries stash-box metadata.

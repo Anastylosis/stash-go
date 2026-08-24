@@ -2,7 +2,6 @@ package stash
 
 import (
 	"context"
-	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -104,29 +103,19 @@ func TestUpdatePackagesAcceptsEmptyList(t *testing.T) {
 	}
 }
 
-// A server four releases too old otherwise answers with a bare "Cannot query
-// field", which reads like a bug in this library.
-func TestPackageCallsExplainAMissingPackageManager(t *testing.T) {
+// Whatever the server objects to, its own words reach the caller: this is the
+// only place they say which field it did not recognise.
+func TestPackageErrorsKeepTheServersWords(t *testing.T) {
 	body := `{"errors":[{"message":"Cannot query field \"installPackages\" on type \"Mutation\".","extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}]}`
 	_, c := server(t, reply(body))
 
 	_, err := c.InstallPackages(context.Background(), PackagePlugin,
 		PackageSpec{ID: "example-plugin", SourceURL: "https://example.test/index.yml"})
-	if !errors.Is(err, ErrNoPackageManager) {
-		t.Fatalf("err = %v, want ErrNoPackageManager", err)
+	if err == nil {
+		t.Fatal("a rejected mutation returned no error")
 	}
-	// The server's own words survive the wrapping.
 	if !strings.Contains(err.Error(), "Cannot query field") {
 		t.Errorf("err = %v, want the server's message kept", err)
-	}
-}
-
-func TestOtherAPIErrorsAreNotMistakenForAnOldServer(t *testing.T) {
-	_, c := server(t, reply(`{"errors":[{"message":"unauthorized"}]}`))
-	_, err := c.InstallPackages(context.Background(), PackagePlugin,
-		PackageSpec{ID: "example-plugin", SourceURL: "https://example.test/index.yml"})
-	if errors.Is(err, ErrNoPackageManager) {
-		t.Errorf("err = %v, want it left alone", err)
 	}
 }
 
@@ -167,14 +156,5 @@ func TestInstalledPackagesDecodes(t *testing.T) {
 	}
 	if len(got) != 1 || got[0].ID != "example-plugin" || got[0].Version != "1.2.3-abcdef0" {
 		t.Errorf("packages = %+v", got)
-	}
-}
-
-// A server four releases too old answers the read calls the same way as the
-// mutations, and should be recognised the same way.
-func TestInstalledPackagesOnAnOldServer(t *testing.T) {
-	_, c := server(t, reply(`{"errors":[{"message":"Cannot query field \"installedPackages\" on type \"Query\"."}]}`))
-	if _, err := c.InstalledPackages(context.Background(), PackagePlugin); !errors.Is(err, ErrNoPackageManager) {
-		t.Errorf("err = %v, want ErrNoPackageManager", err)
 	}
 }

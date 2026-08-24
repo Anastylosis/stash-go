@@ -14,7 +14,7 @@ const (
 	BatchTagPerformers BatchTagTarget = "stashBoxBatchPerformerTag"
 	// BatchTagStudios matches studios.
 	BatchTagStudios BatchTagTarget = "stashBoxBatchStudioTag"
-	// BatchTagTags matches tags. Stash 0.27 and later.
+	// BatchTagTags matches tags.
 	BatchTagTags BatchTagTarget = "stashBoxBatchTagTag"
 )
 

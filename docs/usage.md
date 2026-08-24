@@ -65,8 +65,20 @@ scene, found, err := c.FindScene(ctx, "42")
 
 Every scene query returns the same selection set: the scene's own metadata
 (`Title`, `Code`, `Details`, `Director`, `Date`, `URLs`, `Rating100`,
-`Organized`, `OCounter`), its `Tags`, `Performers`, `Studio`, `StashIDs` and
-`Galleries`, and its files.
+`Organized`, `OCounter`), its `Tags`, `Performers`, `Studio`, `StashIDs`,
+`Galleries` and `Captions`, its `Groups` membership, the playback counters
+(`PlayCount`, `PlayDuration`, `LastPlayedAt`, `ResumeTime`), and its files.
+
+`Captions` lists the subtitle tracks Stash found beside the video. They are
+read-only over GraphQL — Stash discovers them by scanning, so a caption cannot
+be attached over the API, only written to disk and picked up by a scan.
+`LanguageCode` is the bare subtag Stash parsed off the filename, so `clip.pt.srt`
+gives `pt` and a regional tag like `clip.pt-BR.srt` is not a caption at all as
+far as Stash is concerned.
+
+`Groups` is the scene's membership of what Stash called movies before 0.28.
+`SceneIndex` is its place within one, and is nil for a group that does not
+order its scenes — nil rather than zero, because zero is a real index.
 
 `scene.HasStashID()` reports whether stash-box metadata is attached.
 
@@ -921,20 +933,20 @@ the one performer it belongs to**, which is the reliable way to use this.
 sometimes with a unit attached, aliases arrive comma-separated where the input
 wants a list, and the first image is the one to keep.
 
-## Older servers
+## Which Stash this targets
 
-Verified against Stash 0.31.1, schema 85 — the version the live suite runs
-against, and the only one this has been checked on. **The supported floor is
-Stash 0.30**: 0.30 and 0.31 are expected to work and only the latter is
-tested. Below 0.30 the package makes no claim — fields this asks for by name
-were renamed or absent, and a renamed field fails the whole query.
+**This targets Stash 0.31.1, schema 85** — the version the live suite runs
+against, and the only one anything has been checked on. Older servers are not
+supported: the selection sets name fields directly, and a field the schema
+lacks fails the whole query rather than itself.
 
-Asking for a field the schema lacks fails the **whole** query, not just that
-field:
+The wrapped calls do not probe for anything — they name what 0.31.1 has.
+`Supports` is for the other direction: a query of your own, through `Execute`,
+against a field you are not sure of.
 
 ```go
-if ok, err := c.Supports(ctx, "captions"); err == nil && ok {
-    // safe to include it
+if ok, err := c.Supports(ctx, "groups"); err == nil && ok {
+    // safe to name it in your own query
 }
 ```
 
