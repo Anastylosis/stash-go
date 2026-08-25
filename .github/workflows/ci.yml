@@ -18,7 +18,7 @@ jobs:
     permissions:
       contents: read
       checks: write
-      # Required even with codecov: false. The shared workflow's test job
+      # Required unconditionally. The shared workflow's test job
       # declares id-token: write for Codecov's OIDC auth, and a reusable
       # workflow cannot request more than its caller grants — without this the
       # run fails at startup, before a single step executes.
