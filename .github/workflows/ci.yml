@@ -35,3 +35,17 @@ jobs:
       # compiles it today. Static only: `go vet -tags=integration` type-checks
       # the file without executing it, so no live Stash is contacted.
       vet-integration-tag: true
+
+  # The library's integration suite is //go:build integration and read-only
+  # (nothing creates, updates or deletes), so it runs against the harness's
+  # throwaway Stash on every push. `vet-integration-tag` above still
+  # type-checks the same file in the `ci` job; this is the only place it is
+  # actually executed.
+  stash-integration:
+    name: Stash integration
+    uses: Anastylosis/.github/.github/workflows/stash-integration.yml@v1
+    permissions:
+      contents: read
+    with:
+      url-env-var: STASH_URL
+      api-key-env-var: STASH_API_KEY
