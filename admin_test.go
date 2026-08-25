@@ -98,8 +98,8 @@ func TestLogsKeepTheServersOrder(t *testing.T) {
 }
 
 func TestGeneralConfigAsksForWhatItWasGiven(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"configuration":{"general":{"databasePath":"/db","logFile":"/log"}}}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"configuration":{"general":{"databasePath":"/db","logFile":"/log"}}}}`))
 	defer srv.Close()
 
 	got, err := NewClient(srv.URL).GeneralConfig(context.Background(), "databasePath", "logFile")
@@ -109,7 +109,7 @@ func TestGeneralConfigAsksForWhatItWasGiven(t *testing.T) {
 	if got["logFile"] != "/log" {
 		t.Errorf("logFile = %v", got["logFile"])
 	}
-	if q := cap.reqs[0].Query; !strings.Contains(q, "general { databasePath logFile }") {
+	if q := capt.reqs[0].Query; !strings.Contains(q, "general { databasePath logFile }") {
 		t.Errorf("query = %q", q)
 	}
 }
@@ -130,36 +130,36 @@ func TestGeneralConfigRefusesAnythingButFieldNames(t *testing.T) {
 
 // Only the keys given are sent: everything else is left as the server has it.
 func TestConfigureGeneralSendsOnlyWhatItWasGiven(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"configureGeneral":{"__typename":"ConfigResult"}}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"configureGeneral":{"__typename":"ConfigResult"}}}`))
 	defer srv.Close()
 
 	err := NewClient(srv.URL).ConfigureGeneral(context.Background(), map[string]any{"logLevel": "Debug"})
 	if err != nil {
 		t.Fatalf("ConfigureGeneral: %v", err)
 	}
-	in := sentInput(t, cap.reqs[0])
+	in := sentInput(t, capt.reqs[0])
 	if len(in) != 1 || in["logLevel"] != "Debug" {
 		t.Errorf("input = %v, want only logLevel", in)
 	}
 }
 
 func TestConfigureGeneralWithNothingMakesNoRequest(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{}}`))
 	defer srv.Close()
 
 	if err := NewClient(srv.URL).ConfigureGeneral(context.Background(), nil); err != nil {
 		t.Fatalf("ConfigureGeneral: %v", err)
 	}
-	if len(cap.reqs) != 0 {
-		t.Errorf("sent %d requests for an empty change", len(cap.reqs))
+	if len(capt.reqs) != 0 {
+		t.Errorf("sent %d requests for an empty change", len(capt.reqs))
 	}
 }
 
 func TestGenerateAPIKeyReturnsTheNewKey(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"generateAPIKey":"eyJhbGciOi.new.key"}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"generateAPIKey":"eyJhbGciOi.new.key"}}`))
 	defer srv.Close()
 
 	key, err := NewClient(srv.URL, WithAPIKey("old")).GenerateAPIKey(context.Background())
@@ -169,20 +169,20 @@ func TestGenerateAPIKeyReturnsTheNewKey(t *testing.T) {
 	if key != "eyJhbGciOi.new.key" {
 		t.Errorf("key = %q", key)
 	}
-	if got := sentInput(t, cap.reqs[0])["clear"]; got != false {
+	if got := sentInput(t, capt.reqs[0])["clear"]; got != false {
 		t.Errorf("clear = %v, want false", got)
 	}
 }
 
 func TestClearAPIKeySaysSo(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"generateAPIKey":""}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"generateAPIKey":""}}`))
 	defer srv.Close()
 
 	if err := NewClient(srv.URL).ClearAPIKey(context.Background()); err != nil {
 		t.Fatalf("ClearAPIKey: %v", err)
 	}
-	if got := sentInput(t, cap.reqs[0])["clear"]; got != true {
+	if got := sentInput(t, capt.reqs[0])["clear"]; got != true {
 		t.Errorf("clear = %v, want true", got)
 	}
 }

@@ -22,8 +22,8 @@ func inputOf(t *testing.T, req graphqlRequest) map[string]any {
 }
 
 func TestCreatePerformerFromSendsEverythingGiven(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"performerCreate":{"id":"9"}}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"performerCreate":{"id":"9"}}}`))
 	defer srv.Close()
 
 	id, err := NewClient(srv.URL).CreatePerformerFrom(context.Background(), PerformerInput{
@@ -42,7 +42,7 @@ func TestCreatePerformerFromSendsEverythingGiven(t *testing.T) {
 		t.Errorf("id = %q, want 9", id)
 	}
 
-	in := inputOf(t, cap.reqs[0])
+	in := inputOf(t, capt.reqs[0])
 	if in["name"] != "Example Performer" || in["height_cm"] != float64(167) {
 		t.Errorf("input = %+v", in)
 	}
@@ -58,15 +58,15 @@ func TestCreatePerformerFromSendsEverythingGiven(t *testing.T) {
 // Sending an empty field is not the same as not sending it: Stash stores the
 // empty string, and a performer ends up with a birthdate of "".
 func TestCreatePerformerFromOmitsWhatItWasNotGiven(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"performerCreate":{"id":"1"}}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"performerCreate":{"id":"1"}}}`))
 	defer srv.Close()
 
 	if _, err := NewClient(srv.URL).CreatePerformerFrom(context.Background(),
 		PerformerInput{Name: "Only A Name"}); err != nil {
 		t.Fatalf("CreatePerformerFrom: %v", err)
 	}
-	in := inputOf(t, cap.reqs[0])
+	in := inputOf(t, capt.reqs[0])
 	if len(in) != 1 {
 		t.Errorf("sent %d fields, want only name: %+v", len(in), in)
 	}
@@ -84,8 +84,8 @@ func TestCreatePerformerFromRefusesAnEmptyName(t *testing.T) {
 }
 
 func TestFindPerformerByStashID(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"findPerformers":{"performers":[{"id":"42"}]}}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"findPerformers":{"performers":[{"id":"42"}]}}}`))
 	defer srv.Close()
 
 	id, found, err := NewClient(srv.URL).FindPerformerByStashID(context.Background(),
@@ -96,7 +96,7 @@ func TestFindPerformerByStashID(t *testing.T) {
 	if !found || id != "42" {
 		t.Errorf("got (%q, %v)", id, found)
 	}
-	b, _ := json.Marshal(cap.reqs[0].Variables["f"])
+	b, _ := json.Marshal(capt.reqs[0].Variables["f"])
 	if !strings.Contains(string(b), "abc-123") || !strings.Contains(string(b), "EQUALS") {
 		t.Errorf("filter = %s", b)
 	}
@@ -151,8 +151,8 @@ func TestFindPerformerByIDNotFound(t *testing.T) {
 // The same shape as SceneUpdate: only what is set goes on the wire, so an
 // unset field leaves the stored value alone.
 func TestUpdatePerformerSendsOnlyWhatIsSet(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"performerUpdate":{"id":"1"}}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"performerUpdate":{"id":"1"}}}`))
 	defer srv.Close()
 
 	details := "Only this."
@@ -160,7 +160,7 @@ func TestUpdatePerformerSendsOnlyWhatIsSet(t *testing.T) {
 		PerformerUpdate{ID: "1", Details: &details}); err != nil {
 		t.Fatalf("UpdatePerformer: %v", err)
 	}
-	in := inputOf(t, cap.reqs[0])
+	in := inputOf(t, capt.reqs[0])
 	if len(in) != 2 || in["id"] != "1" || in["details"] != "Only this." {
 		t.Errorf("input = %+v, want only id and details", in)
 	}
@@ -169,8 +169,8 @@ func TestUpdatePerformerSendsOnlyWhatIsSet(t *testing.T) {
 // A zero is a real value for these, not an absence, so the pointer is what
 // separates "set it to zero" from "leave it".
 func TestUpdatePerformerSendsExplicitZeroes(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"performerUpdate":{"id":"1"}}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"performerUpdate":{"id":"1"}}}`))
 	defer srv.Close()
 
 	zero, no := 0, false
@@ -179,7 +179,7 @@ func TestUpdatePerformerSendsExplicitZeroes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UpdatePerformer: %v", err)
 	}
-	in := inputOf(t, cap.reqs[0])
+	in := inputOf(t, capt.reqs[0])
 	if in["rating100"] != float64(0) {
 		t.Errorf("rating100 = %#v, want 0 sent", in["rating100"])
 	}
@@ -197,15 +197,15 @@ func TestUpdatePerformerNeedsAnID(t *testing.T) {
 
 // PerformerUpdate omits what is unset, so it cannot empty a field at all.
 func TestClearPerformerFieldsSendsTheRightEmptyValue(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"performerUpdate":{"id":"1"}}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"performerUpdate":{"id":"1"}}}`))
 	defer srv.Close()
 
 	err := NewClient(srv.URL).ClearPerformerFields(context.Background(), "1", "birthdate", "alias_list")
 	if err != nil {
 		t.Fatalf("ClearPerformerFields: %v", err)
 	}
-	in := inputOf(t, cap.reqs[0])
+	in := inputOf(t, capt.reqs[0])
 	if in["birthdate"] != "" {
 		t.Errorf("birthdate = %#v, want an empty string", in["birthdate"])
 	}
@@ -231,15 +231,15 @@ func TestClearPerformerFieldsRefusesAnythingButAFieldName(t *testing.T) {
 }
 
 func TestDeletePerformers(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"performersDestroy":true}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"performersDestroy":true}}`))
 	defer srv.Close()
 	c := NewClient(srv.URL)
 
 	if err := c.DeletePerformers(context.Background(), "1", "2"); err != nil {
 		t.Fatalf("DeletePerformers: %v", err)
 	}
-	b, _ := json.Marshal(cap.reqs[0].Variables["ids"])
+	b, _ := json.Marshal(capt.reqs[0].Variables["ids"])
 	if string(b) != `["1","2"]` {
 		t.Errorf("ids = %s", b)
 	}
@@ -247,14 +247,14 @@ func TestDeletePerformers(t *testing.T) {
 	if err := c.DeletePerformers(context.Background()); err != nil {
 		t.Errorf("DeletePerformers with no ids: %v", err)
 	}
-	if len(cap.reqs) != 1 {
-		t.Errorf("sent %d requests, want 1", len(cap.reqs))
+	if len(capt.reqs) != 1 {
+		t.Errorf("sent %d requests, want 1", len(capt.reqs))
 	}
 }
 
 func TestMergePerformersSendsSourcesAndDestination(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"performerMerge":{"id":"1"}}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"performerMerge":{"id":"1"}}}`))
 	defer srv.Close()
 
 	name := "The better name"
@@ -263,7 +263,7 @@ func TestMergePerformersSendsSourcesAndDestination(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MergePerformers: %v", err)
 	}
-	in := inputOf(t, cap.reqs[0])
+	in := inputOf(t, capt.reqs[0])
 	if in["destination"] != "1" {
 		t.Errorf("destination = %v", in["destination"])
 	}
@@ -327,8 +327,8 @@ func TestPerformerCareerYearsDecodeAsStrings(t *testing.T) {
 }
 
 func TestFindPerformersDecodesAndCounts(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"findPerformers":{"count":42,"performers":[
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"findPerformers":{"count":42,"performers":[
 		{"id":"1","name":"Example","scene_count":7}]}}}`))
 	defer srv.Close()
 
@@ -341,22 +341,22 @@ func TestFindPerformersDecodesAndCounts(t *testing.T) {
 	if count != 42 || len(got) != 1 || got[0].SceneCount != 7 {
 		t.Errorf("got %d of %d: %+v", len(got), count, got)
 	}
-	b, _ := json.Marshal(cap.reqs[0].Variables["performer_filter"])
+	b, _ := json.Marshal(capt.reqs[0].Variables["performer_filter"])
 	if !strings.Contains(string(b), "FEMALE") || !strings.Contains(string(b), "NOT_NULL") {
 		t.Errorf("filter = %s", b)
 	}
 }
 
 func TestDeletePerformer(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"performerDestroy":true}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"performerDestroy":true}}`))
 	defer srv.Close()
 	c := NewClient(srv.URL)
 
 	if err := c.DeletePerformer(context.Background(), "9"); err != nil {
 		t.Fatalf("DeletePerformer: %v", err)
 	}
-	if got := cap.reqs[0].Variables["id"]; got != "9" {
+	if got := capt.reqs[0].Variables["id"]; got != "9" {
 		t.Errorf("id = %v", got)
 	}
 	if err := c.DeletePerformer(context.Background(), ""); err == nil {

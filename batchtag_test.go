@@ -17,8 +17,8 @@ func TestStashBoxBatchTagNeedsAnEndpoint(t *testing.T) {
 }
 
 func TestStashBoxBatchTagRefusesAnUnknownTarget(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"x":"7"}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"x":"7"}}`))
 	defer srv.Close()
 
 	// The target names the mutation, so an unchecked value would be
@@ -28,8 +28,8 @@ func TestStashBoxBatchTagRefusesAnUnknownTarget(t *testing.T) {
 	if err == nil {
 		t.Fatal("an arbitrary target was accepted")
 	}
-	if len(cap.reqs) != 0 {
-		t.Errorf("sent %d requests", len(cap.reqs))
+	if len(capt.reqs) != 0 {
+		t.Errorf("sent %d requests", len(capt.reqs))
 	}
 }
 
@@ -47,8 +47,8 @@ func TestStashBoxBatchTagRefusesBothIDsAndNames(t *testing.T) {
 }
 
 func TestStashBoxBatchTagSendsTheJob(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"stashBoxBatchTagTag":"41"}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"stashBoxBatchTagTag":"41"}}`))
 	defer srv.Close()
 
 	job, err := NewClient(srv.URL).StashBoxBatchTag(context.Background(), BatchTagTags, BatchTagOptions{
@@ -62,10 +62,10 @@ func TestStashBoxBatchTagSendsTheJob(t *testing.T) {
 	if job != "41" {
 		t.Errorf("job = %q", job)
 	}
-	if !strings.Contains(cap.reqs[0].Query, "stashBoxBatchTagTag") {
-		t.Errorf("query = %q", cap.reqs[0].Query)
+	if !strings.Contains(capt.reqs[0].Query, "stashBoxBatchTagTag") {
+		t.Errorf("query = %q", capt.reqs[0].Query)
 	}
-	b, _ := json.Marshal(cap.reqs[0].Variables["input"])
+	b, _ := json.Marshal(capt.reqs[0].Variables["input"])
 	var in map[string]any
 	_ = json.Unmarshal(b, &in)
 	if in["stash_box_endpoint"] != "https://x.test/graphql" {

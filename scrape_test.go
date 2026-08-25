@@ -28,21 +28,21 @@ func TestStashBoxesDoesNotCarryTheAPIKey(t *testing.T) {
 	if _, ok := reflect.TypeOf(StashBox{}).FieldByName("APIKey"); ok {
 		t.Error("StashBox has an APIKey field")
 	}
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"configuration":{"general":{"stashBoxes":[]}}}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"configuration":{"general":{"stashBoxes":[]}}}}`))
 	defer srv.Close()
 
 	if _, err := NewClient(srv.URL).StashBoxes(context.Background()); err != nil {
 		t.Fatalf("StashBoxes: %v", err)
 	}
-	if strings.Contains(cap.reqs[0].Query, "api_key") {
-		t.Errorf("the query asks for the API key: %s", cap.reqs[0].Query)
+	if strings.Contains(capt.reqs[0].Query, "api_key") {
+		t.Errorf("the query asks for the API key: %s", capt.reqs[0].Query)
 	}
 }
 
 func TestScrapePerformersDecodes(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"scrapeSinglePerformer":[{
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"scrapeSinglePerformer":[{
 		"name":"Example Performer","gender":"FEMALE","country":"US","height":"167",
 		"aliases":"Alias One, Alias Two","images":["https://example.test/1","https://example.test/2"],
 		"remote_site_id":"abc-123"}]}}`))
@@ -55,7 +55,7 @@ func TestScrapePerformersDecodes(t *testing.T) {
 	if len(got) != 1 || got[0].RemoteSiteID != "abc-123" {
 		t.Fatalf("scraped = %+v", got)
 	}
-	b, _ := json.Marshal(cap.reqs[0].Variables["source"])
+	b, _ := json.Marshal(capt.reqs[0].Variables["source"])
 	if !strings.Contains(string(b), "stash_box_endpoint") {
 		t.Errorf("source = %s", b)
 	}
@@ -121,8 +121,8 @@ func TestMeasureIgnoresJunk(t *testing.T) {
 }
 
 func TestScrapeScenesDecodes(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"scrapeSingleScene":[{
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"scrapeSingleScene":[{
 		"title":"A Scene","code":"CODE1","date":"2010-07-21","duration":1479,
 		"remote_site_id":"abc-123",
 		"studio":{"name":"A Studio","stored_id":"3"},
@@ -142,7 +142,7 @@ func TestScrapeScenesDecodes(t *testing.T) {
 	if len(got[0].Performers) != 1 || got[0].Performers[0].StoredID != "5" {
 		t.Errorf("performers = %+v", got[0].Performers)
 	}
-	b, _ := json.Marshal(cap.reqs[0].Variables["input"])
+	b, _ := json.Marshal(capt.reqs[0].Variables["input"])
 	if !strings.Contains(string(b), `"query"`) {
 		t.Errorf("input = %s", b)
 	}
@@ -151,8 +151,8 @@ func TestScrapeScenesDecodes(t *testing.T) {
 // Matching on the file's fingerprints rather than on text, which is a
 // different input field and the difference between exact and fuzzy.
 func TestScrapeSceneByIDSendsTheSceneID(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"scrapeSingleScene":[]}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"scrapeSingleScene":[]}}`))
 	defer srv.Close()
 
 	got, err := NewClient(srv.URL).ScrapeSceneByID(context.Background(), "https://example.test/graphql", "36")
@@ -164,7 +164,7 @@ func TestScrapeSceneByIDSendsTheSceneID(t *testing.T) {
 	if len(got) != 0 {
 		t.Errorf("scraped = %+v", got)
 	}
-	b, _ := json.Marshal(cap.reqs[0].Variables["input"])
+	b, _ := json.Marshal(capt.reqs[0].Variables["input"])
 	if !strings.Contains(string(b), `"scene_id":"36"`) {
 		t.Errorf("input = %s", b)
 	}
@@ -181,10 +181,10 @@ func TestScrapeSceneCallsNeedBothArguments(t *testing.T) {
 }
 
 func TestScrapeMultiScenesKeepsResultsParallelToInput(t *testing.T) {
-	cap := &capture{}
+	capt := &capture{}
 	// The middle scene is one the stash-box does not know: its entry is
 	// empty rather than absent, which is what keeps the slices aligned.
-	srv := httptest.NewServer(cap.handler(`{"data":{"scrapeMultiScenes":[
+	srv := httptest.NewServer(capt.handler(`{"data":{"scrapeMultiScenes":[
 		[{"title":"First","remote_site_id":"aaa"}],
 		[],
 		[{"title":"Third","remote_site_id":"ccc"},{"title":"Third alt","remote_site_id":"ddd"}]
@@ -209,7 +209,7 @@ func TestScrapeMultiScenesKeepsResultsParallelToInput(t *testing.T) {
 		t.Errorf("scene 3 = %+v, want 2 candidates", got[2])
 	}
 
-	vars := cap.reqs[0].Variables
+	vars := capt.reqs[0].Variables
 	src, _ := vars["source"].(map[string]any)
 	if src["stash_box_endpoint"] != "https://box.test/graphql" {
 		t.Errorf("source = %v", src)
@@ -222,16 +222,16 @@ func TestScrapeMultiScenesKeepsResultsParallelToInput(t *testing.T) {
 }
 
 func TestScrapeMultiScenesEmptyInputMakesNoRequest(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"scrapeMultiScenes":[]}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"scrapeMultiScenes":[]}}`))
 	defer srv.Close()
 
 	got, err := NewClient(srv.URL).ScrapeMultiScenes(context.Background(), "https://box.test/graphql", nil)
 	if err != nil || got != nil {
 		t.Errorf("got (%v, %v), want (nil, nil)", got, err)
 	}
-	if len(cap.reqs) != 0 {
-		t.Errorf("made %d request(s) for no scenes", len(cap.reqs))
+	if len(capt.reqs) != 0 {
+		t.Errorf("made %d request(s) for no scenes", len(capt.reqs))
 	}
 	if _, err := NewClient(srv.URL).ScrapeMultiScenes(context.Background(), "", []string{"1"}); err == nil {
 		t.Error("no endpoint was allowed")

@@ -62,8 +62,8 @@ func TestSavedFiltersDecodes(t *testing.T) {
 // criteria the way a query does, and Stash accepts the query notation, stores
 // it, and then the filter does nothing in the UI.
 func TestSaveSceneFilterWrapsTheDateValue(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(
 		`{"data":{"findSavedFilters":[]}}`,
 		`{"data":{"saveFilter":{"id":"8"}}}`))
 	defer srv.Close()
@@ -72,7 +72,7 @@ func TestSaveSceneFilterWrapsTheDateValue(t *testing.T) {
 		SceneFilter{DateBefore: "2010-01-01"}, nil); err != nil {
 		t.Fatalf("SaveSceneFilter: %v", err)
 	}
-	date := criteria(t, cap.reqs[1], "date")
+	date := criteria(t, capt.reqs[1], "date")
 	if date["modifier"] != "LESS_THAN" {
 		t.Errorf("modifier = %v", date["modifier"])
 	}
@@ -86,8 +86,8 @@ func TestSaveSceneFilterWrapsTheDateValue(t *testing.T) {
 }
 
 func TestSaveSceneFilterDateRange(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(
 		`{"data":{"findSavedFilters":[]}}`,
 		`{"data":{"saveFilter":{"id":"1"}}}`))
 	defer srv.Close()
@@ -96,7 +96,7 @@ func TestSaveSceneFilterDateRange(t *testing.T) {
 		SceneFilter{DateAfter: "2009-01-01", DateBefore: "2010-01-01"}, nil); err != nil {
 		t.Fatalf("SaveSceneFilter: %v", err)
 	}
-	date := criteria(t, cap.reqs[1], "date")
+	date := criteria(t, capt.reqs[1], "date")
 	if date["modifier"] != "BETWEEN" {
 		t.Errorf("modifier = %v, want BETWEEN", date["modifier"])
 	}
@@ -108,8 +108,8 @@ func TestSaveSceneFilterDateRange(t *testing.T) {
 
 // Tags are listed as labelled items, not as a list of ids.
 func TestSaveSceneFilterWritesTagsAsItems(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(
 		`{"data":{"findTags":{"tags":[{"id":"4"}]}}}`,
 		`{"data":{"findSavedFilters":[]}}`,
 		`{"data":{"saveFilter":{"id":"1"}}}`))
@@ -119,7 +119,7 @@ func TestSaveSceneFilterWritesTagsAsItems(t *testing.T) {
 		SceneFilter{ExcludeTagNames: []string{"HD Available"}}, nil); err != nil {
 		t.Fatalf("SaveSceneFilter: %v", err)
 	}
-	tags := criteria(t, cap.reqs[2], "tags")
+	tags := criteria(t, capt.reqs[2], "tags")
 	if tags["modifier"] != "EXCLUDES" {
 		t.Errorf("modifier = %v", tags["modifier"])
 	}
@@ -143,8 +143,8 @@ func TestSaveSceneFilterWritesTagsAsItems(t *testing.T) {
 
 // Booleans are stringly typed in a saved filter.
 func TestSaveSceneFilterWritesOrganizedAsAString(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(
 		`{"data":{"findSavedFilters":[]}}`,
 		`{"data":{"saveFilter":{"id":"1"}}}`))
 	defer srv.Close()
@@ -154,14 +154,14 @@ func TestSaveSceneFilterWritesOrganizedAsAString(t *testing.T) {
 		SceneFilter{Organized: &no}, nil); err != nil {
 		t.Fatalf("SaveSceneFilter: %v", err)
 	}
-	if got := criteria(t, cap.reqs[1], "organized")["value"]; got != "false" {
+	if got := criteria(t, capt.reqs[1], "organized")["value"]; got != "false" {
 		t.Errorf("value = %#v, want the string \"false\"", got)
 	}
 }
 
 func TestSaveSceneFilterHasDate(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(
 		`{"data":{"findSavedFilters":[]}}`,
 		`{"data":{"saveFilter":{"id":"1"}}}`))
 	defer srv.Close()
@@ -171,7 +171,7 @@ func TestSaveSceneFilterHasDate(t *testing.T) {
 		SceneFilter{HasDate: &no}, nil); err != nil {
 		t.Fatalf("SaveSceneFilter: %v", err)
 	}
-	if got := criteria(t, cap.reqs[1], "date")["modifier"]; got != "IS_NULL" {
+	if got := criteria(t, capt.reqs[1], "date")["modifier"]; got != "IS_NULL" {
 		t.Errorf("modifier = %v", got)
 	}
 }
@@ -179,8 +179,8 @@ func TestSaveSceneFilterHasDate(t *testing.T) {
 // A program run twice should not leave two identical entries in someone's
 // sidebar, and Stash allows the duplicate.
 func TestSaveSceneFilterUpdatesOneOfTheSameName(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(
 		`{"data":{"findSavedFilters":[{"id":"8","mode":"SCENES","name":"Made before 2010","ui_options":{"zoom_index":2}}]}}`,
 		`{"data":{"saveFilter":{"id":"8"}}}`))
 	defer srv.Close()
@@ -193,7 +193,7 @@ func TestSaveSceneFilterUpdatesOneOfTheSameName(t *testing.T) {
 	if id != "8" {
 		t.Errorf("id = %q, want the existing 8", id)
 	}
-	in := savedInput(t, cap.reqs[1])
+	in := savedInput(t, capt.reqs[1])
 	if in["id"] != "8" {
 		t.Errorf("input id = %v, want 8", in["id"])
 	}
@@ -240,14 +240,14 @@ func TestDestroySavedFilterNeedsAnID(t *testing.T) {
 }
 
 func TestDestroySavedFilter(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"destroySavedFilter":true}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"destroySavedFilter":true}}`))
 	defer srv.Close()
 
 	if err := NewClient(srv.URL).DestroySavedFilter(context.Background(), "8"); err != nil {
 		t.Fatalf("DestroySavedFilter: %v", err)
 	}
-	if got := cap.reqs[0].Variables["id"]; got != "8" {
+	if got := capt.reqs[0].Variables["id"]; got != "8" {
 		t.Errorf("id = %v", got)
 	}
 }

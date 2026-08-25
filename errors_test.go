@@ -3,6 +3,7 @@ package stash
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -381,8 +382,8 @@ func TestEnsureCreatesOnlyWhenAbsent(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			cap := &capture{}
-			srv := httptest.NewServer(cap.handler(tc.replies...))
+			capt := &capture{}
+			srv := httptest.NewServer(capt.handler(tc.replies...))
 			defer srv.Close()
 
 			id, err := tc.run(context.Background(), NewClient(srv.URL))
@@ -392,8 +393,8 @@ func TestEnsureCreatesOnlyWhenAbsent(t *testing.T) {
 			if id != tc.wantID {
 				t.Errorf("id = %q, want %q", id, tc.wantID)
 			}
-			if len(cap.reqs) != tc.wantN {
-				t.Errorf("made %d requests, want %d", len(cap.reqs), tc.wantN)
+			if len(capt.reqs) != tc.wantN {
+				t.Errorf("made %d requests, want %d", len(capt.reqs), tc.wantN)
 			}
 		})
 	}
@@ -402,8 +403,8 @@ func TestEnsureCreatesOnlyWhenAbsent(t *testing.T) {
 // A tag found only by its alias is still that tag, and must not be created a
 // second time under the name that was searched for.
 func TestEnsureTagFindsItByAlias(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(
 		`{"data":{"findTags":{"tags":[]}}}`,           // not by name
 		`{"data":{"findTags":{"tags":[{"id":"5"}]}}}`, // but by alias
 	))
@@ -416,8 +417,8 @@ func TestEnsureTagFindsItByAlias(t *testing.T) {
 	if id != "5" {
 		t.Errorf("id = %q, want the tag found by alias", id)
 	}
-	if len(cap.reqs) != 2 {
-		t.Errorf("made %d requests, want 2 and no create", len(cap.reqs))
+	if len(capt.reqs) != 2 {
+		t.Errorf("made %d requests, want 2 and no create", len(capt.reqs))
 	}
 }
 
@@ -450,7 +451,7 @@ func TestRedactWithoutAKey(t *testing.T) {
 		t.Errorf("redact(nil) = %v", err)
 	}
 	original := &HTTPError{Status: "500"}
-	if got := c.redact(original); got != error(original) {
+	if got := c.redact(original); !errors.Is(got, error(original)) {
 		t.Errorf("redact returned a different error when there was no key")
 	}
 }
@@ -539,8 +540,8 @@ func ptr(s string) *string { return &s }
 // A saved filter renders every criterion it is given, in the notation saved
 // filters use rather than the one queries use.
 func TestSavedCriteriaCoverEveryFilterField(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(
 		`{"data":{"findPerformers":{"performers":[{"id":"9"}]}}}`,
 		`{"data":{"findStudios":{"studios":[{"id":"3"}]}}}`,
 		`{"data":{"findSavedFilters":[]}}`,
@@ -556,7 +557,7 @@ func TestSavedCriteriaCoverEveryFilterField(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SaveSceneFilter: %v", err)
 	}
-	b, _ := json.Marshal(cap.reqs[len(cap.reqs)-1].Variables["input"])
+	b, _ := json.Marshal(capt.reqs[len(capt.reqs)-1].Variables["input"])
 	for _, want := range []string{"organized", "stash_id_endpoint", "date", "path", "performers", "studios"} {
 		if !strings.Contains(string(b), want) {
 			t.Errorf("input = %s, missing %s", b, want)
@@ -571,8 +572,8 @@ func TestSavedCriteriaCoverEveryFilterField(t *testing.T) {
 // Both bounds together become one range, because Stash takes a single date
 // criterion and sending two would silently keep the last.
 func TestSavedCriteriaDateRange(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(
 		`{"data":{"findSavedFilters":[]}}`,
 		`{"data":{"saveFilter":{"id":"1"}}}`,
 	))
@@ -583,7 +584,7 @@ func TestSavedCriteriaDateRange(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SaveSceneFilter: %v", err)
 	}
-	b, _ := json.Marshal(cap.reqs[1].Variables["input"])
+	b, _ := json.Marshal(capt.reqs[1].Variables["input"])
 	if !strings.Contains(string(b), "BETWEEN") || !strings.Contains(string(b), "value2") {
 		t.Errorf("input = %s", b)
 	}
@@ -616,7 +617,7 @@ func TestRedactRewritesATransportError(t *testing.T) {
 	// An error that never mentioned the key comes back as it was, rather
 	// than being rebuilt into a plain error and losing its type.
 	original := &HTTPError{Status: "500", Body: "nothing sensitive"}
-	if got := c.redact(original); got != error(original) {
+	if got := c.redact(original); !errors.Is(got, error(original)) {
 		t.Error("redact rebuilt an error that needed no changing")
 	}
 }

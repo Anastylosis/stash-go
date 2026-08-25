@@ -27,8 +27,8 @@ func TestStashBoxConfigsCarryTheKey(t *testing.T) {
 // It replaces; it does not add. Sending one box removes every other, along
 // with its key, and nothing asks first.
 func TestSetStashBoxesSendsTheWholeList(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"configureGeneral":{"__typename":"ConfigResult"}}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"configureGeneral":{"__typename":"ConfigResult"}}}`))
 	defer srv.Close()
 
 	err := NewClient(srv.URL).SetStashBoxes(context.Background(), []StashBoxConfig{
@@ -38,7 +38,7 @@ func TestSetStashBoxesSendsTheWholeList(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SetStashBoxes: %v", err)
 	}
-	b, _ := json.Marshal(cap.reqs[0].Variables["input"])
+	b, _ := json.Marshal(capt.reqs[0].Variables["input"])
 	var in struct {
 		StashBoxes []map[string]any `json:"stashBoxes"`
 	}
@@ -53,14 +53,14 @@ func TestSetStashBoxesSendsTheWholeList(t *testing.T) {
 
 // Removing them all is a legitimate thing to want, so it is not refused.
 func TestSetStashBoxesAcceptsAnEmptyList(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"configureGeneral":{"__typename":"ConfigResult"}}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"configureGeneral":{"__typename":"ConfigResult"}}}`))
 	defer srv.Close()
 
 	if err := NewClient(srv.URL).SetStashBoxes(context.Background(), nil); err != nil {
 		t.Fatalf("SetStashBoxes: %v", err)
 	}
-	b, _ := json.Marshal(cap.reqs[0].Variables["input"])
+	b, _ := json.Marshal(capt.reqs[0].Variables["input"])
 	if !strings.Contains(string(b), `"stashBoxes":[]`) {
 		t.Errorf("input = %s, want an explicit empty list", b)
 	}
@@ -88,8 +88,8 @@ func TestValidateStashBox(t *testing.T) {
 }
 
 func TestSubmitSceneDraftReturnsTheDraftID(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"submitStashBoxSceneDraft":"draft-1"}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"submitStashBoxSceneDraft":"draft-1"}}`))
 	defer srv.Close()
 
 	id, err := NewClient(srv.URL).SubmitSceneDraft(context.Background(), "36", "https://example.test/graphql")
@@ -99,7 +99,7 @@ func TestSubmitSceneDraftReturnsTheDraftID(t *testing.T) {
 	if id != "draft-1" {
 		t.Errorf("draft id = %q", id)
 	}
-	b, _ := json.Marshal(cap.reqs[0].Variables["input"])
+	b, _ := json.Marshal(capt.reqs[0].Variables["input"])
 	if !strings.Contains(string(b), `"id":"36"`) || !strings.Contains(string(b), "stash_box_endpoint") {
 		t.Errorf("input = %s", b)
 	}
@@ -134,8 +134,8 @@ func TestSubmitDraftNeedsBothArguments(t *testing.T) {
 }
 
 func TestSubmitFingerprints(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"submitStashBoxFingerprints":true}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"submitStashBoxFingerprints":true}}`))
 	defer srv.Close()
 	c := NewClient(srv.URL)
 
@@ -143,7 +143,7 @@ func TestSubmitFingerprints(t *testing.T) {
 	if err != nil || !ok {
 		t.Fatalf("got (%v, %v)", ok, err)
 	}
-	b, _ := json.Marshal(cap.reqs[0].Variables["input"])
+	b, _ := json.Marshal(capt.reqs[0].Variables["input"])
 	var in struct {
 		SceneIDs []string `json:"scene_ids"`
 	}
@@ -156,8 +156,8 @@ func TestSubmitFingerprints(t *testing.T) {
 	if ok, err := c.SubmitFingerprints(context.Background(), "https://example.test/graphql"); err != nil || ok {
 		t.Errorf("got (%v, %v) for no scenes", ok, err)
 	}
-	if len(cap.reqs) != 1 {
-		t.Errorf("sent %d requests, want 1", len(cap.reqs))
+	if len(capt.reqs) != 1 {
+		t.Errorf("sent %d requests, want 1", len(capt.reqs))
 	}
 	if _, err := c.SubmitFingerprints(context.Background(), "", "1"); err == nil {
 		t.Error("want an error without an endpoint")

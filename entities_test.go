@@ -126,8 +126,8 @@ func TestEnsureDoesNotCreateWhenPresent(t *testing.T) {
 }
 
 func TestCreateTagReturnsItsID(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"tagCreate":{"id":"11"}}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"tagCreate":{"id":"11"}}}`))
 	defer srv.Close()
 
 	id, err := NewClient(srv.URL).CreateTag(context.Background(), "a new tag")
@@ -137,7 +137,7 @@ func TestCreateTagReturnsItsID(t *testing.T) {
 	if id != "11" {
 		t.Errorf("id = %q", id)
 	}
-	b, _ := json.Marshal(cap.reqs[0].Variables)
+	b, _ := json.Marshal(capt.reqs[0].Variables)
 	if !strings.Contains(string(b), "a new tag") {
 		t.Errorf("variables = %s", b)
 	}

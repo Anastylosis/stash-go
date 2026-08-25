@@ -47,8 +47,8 @@ func TestDescriptionOfPackageWithoutMetadata(t *testing.T) {
 }
 
 func TestInstallPackagesReturnsJobID(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"installPackages":"7"}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"installPackages":"7"}}`))
 	defer srv.Close()
 	c := NewClient(srv.URL)
 
@@ -60,7 +60,7 @@ func TestInstallPackagesReturnsJobID(t *testing.T) {
 	if id != "7" {
 		t.Errorf("job id = %q, want 7", id)
 	}
-	if got := cap.reqs[0].Variables["type"]; got != "Plugin" {
+	if got := capt.reqs[0].Variables["type"]; got != "Plugin" {
 		t.Errorf("type = %v, want Plugin", got)
 	}
 }

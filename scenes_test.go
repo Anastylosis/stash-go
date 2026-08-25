@@ -123,8 +123,8 @@ func TestFindScenesUnknownStudioIsSentinelError(t *testing.T) {
 }
 
 func TestFindScenesBuildsFilter(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"findScenes":{"count":0,"scenes":[]}}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"findScenes":{"count":0,"scenes":[]}}}`))
 	defer srv.Close()
 
 	organized := true
@@ -138,7 +138,7 @@ func TestFindScenesBuildsFilter(t *testing.T) {
 		t.Fatalf("FindScenes: %v", err)
 	}
 
-	vars := cap.reqs[0].Variables
+	vars := capt.reqs[0].Variables
 	find := vars["filter"].(map[string]any)
 	if find["page"] != float64(2) || find["per_page"] != float64(50) {
 		t.Errorf("find filter = %#v", find)
@@ -161,14 +161,14 @@ func TestFindScenesBuildsFilter(t *testing.T) {
 }
 
 func TestFindScenesOmitsSceneFilterWhenEmpty(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"findScenes":{"count":0,"scenes":[]}}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"findScenes":{"count":0,"scenes":[]}}}`))
 	defer srv.Close()
 
 	if _, _, err := NewClient(srv.URL).FindScenes(context.Background(), SceneFilter{}, 1, 10); err != nil {
 		t.Fatalf("FindScenes: %v", err)
 	}
-	if _, ok := cap.reqs[0].Variables["scene_filter"]; ok {
+	if _, ok := capt.reqs[0].Variables["scene_filter"]; ok {
 		t.Error("scene_filter should be omitted entirely when no filter is set")
 	}
 }
@@ -178,8 +178,8 @@ func TestFindAllScenesPaginatesUntilShortPage(t *testing.T) {
 		strings.TrimSuffix(strings.Repeat(`{"id":"x"},`, 100), ",") + `]}}}`
 	short := `{"data":{"findScenes":{"count":250,"scenes":[{"id":"last"}]}}}`
 
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(full, full, short))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(full, full, short))
 	defer srv.Close()
 
 	var lastFetched, lastTotal int
@@ -191,8 +191,8 @@ func TestFindAllScenesPaginatesUntilShortPage(t *testing.T) {
 	if len(all) != 201 {
 		t.Errorf("collected %d scenes, want 201", len(all))
 	}
-	if len(cap.reqs) != 3 {
-		t.Errorf("made %d requests, want 3 (stop on the short page)", len(cap.reqs))
+	if len(capt.reqs) != 3 {
+		t.Errorf("made %d requests, want 3 (stop on the short page)", len(capt.reqs))
 	}
 	if lastFetched != 201 || lastTotal != 250 {
 		t.Errorf("progress = (%d, %d), want (201, 250)", lastFetched, lastTotal)
@@ -222,8 +222,8 @@ func TestFindAllScenesCancellationReturnsPartial(t *testing.T) {
 // Only the fields explicitly set may be sent, or a partial push would blank
 // everything the caller did not mention.
 func TestUpdateSceneOmitsUnsetFields(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"sceneUpdate":{"id":"1"}}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"sceneUpdate":{"id":"1"}}}`))
 	defer srv.Close()
 
 	title := "New"
@@ -232,7 +232,7 @@ func TestUpdateSceneOmitsUnsetFields(t *testing.T) {
 		t.Fatalf("UpdateScene: %v", err)
 	}
 
-	input := cap.reqs[0].Variables["input"].(map[string]any)
+	input := capt.reqs[0].Variables["input"].(map[string]any)
 	if input["title"] != "New" {
 		t.Errorf("title = %v", input["title"])
 	}
@@ -244,8 +244,8 @@ func TestUpdateSceneOmitsUnsetFields(t *testing.T) {
 }
 
 func TestUpdateSceneSendsSetFields(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"sceneUpdate":{"id":"1"}}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"sceneUpdate":{"id":"1"}}}`))
 	defer srv.Close()
 
 	code, director, rating := "ABC-123", "Someone", 80
@@ -260,7 +260,7 @@ func TestUpdateSceneSendsSetFields(t *testing.T) {
 		t.Fatalf("UpdateScene: %v", err)
 	}
 
-	input := cap.reqs[0].Variables["input"].(map[string]any)
+	input := capt.reqs[0].Variables["input"].(map[string]any)
 	if input["code"] != "ABC-123" || input["director"] != "Someone" || input["rating100"] != float64(80) {
 		t.Errorf("input = %v", input)
 	}
@@ -311,14 +311,14 @@ func TestSceneFilterHasDate(t *testing.T) {
 		has      bool
 		modifier string
 	}{{true, "NOT_NULL"}, {false, "IS_NULL"}} {
-		cap := &capture{}
-		srv := httptest.NewServer(cap.handler(`{"data":{"findScenes":{"count":0,"scenes":[]}}}`))
+		capt := &capture{}
+		srv := httptest.NewServer(capt.handler(`{"data":{"findScenes":{"count":0,"scenes":[]}}}`))
 		if _, _, err := NewClient(srv.URL).FindScenes(context.Background(),
 			SceneFilter{HasDate: &want.has}, 1, 10); err != nil {
 			t.Fatalf("FindScenes: %v", err)
 		}
 		srv.Close()
-		b, _ := json.Marshal(cap.reqs[0].Variables["scene_filter"])
+		b, _ := json.Marshal(capt.reqs[0].Variables["scene_filter"])
 		if !strings.Contains(string(b), want.modifier) {
 			t.Errorf("HasDate=%v sent %s, want %s", want.has, b, want.modifier)
 		}
@@ -341,13 +341,13 @@ func TestSceneFilterDateBounds(t *testing.T) {
 		{SceneFilter{DateBefore: "2010-01-01"}, "LESS_THAN"},
 		{SceneFilter{DateAfter: "2009-01-01", DateBefore: "2010-01-01"}, "BETWEEN"},
 	} {
-		cap := &capture{}
-		srv := httptest.NewServer(cap.handler(`{"data":{"findScenes":{"count":0,"scenes":[]}}}`))
+		capt := &capture{}
+		srv := httptest.NewServer(capt.handler(`{"data":{"findScenes":{"count":0,"scenes":[]}}}`))
 		if _, _, err := NewClient(srv.URL).FindScenes(context.Background(), tc.filter, 1, 10); err != nil {
 			t.Fatalf("FindScenes: %v", err)
 		}
 		srv.Close()
-		b, _ := json.Marshal(cap.reqs[0].Variables["scene_filter"])
+		b, _ := json.Marshal(capt.reqs[0].Variables["scene_filter"])
 		if !strings.Contains(string(b), tc.modifier) {
 			t.Errorf("%+v sent %s, want %s", tc.filter, b, tc.modifier)
 		}
@@ -355,8 +355,8 @@ func TestSceneFilterDateBounds(t *testing.T) {
 }
 
 func TestSceneFilterTagNames(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(
 		`{"data":{"findTags":{"tags":[{"id":"9"}]}}}`,
 		`{"data":{"findScenes":{"count":0,"scenes":[]}}}`))
 	defer srv.Close()
@@ -365,7 +365,7 @@ func TestSceneFilterTagNames(t *testing.T) {
 		SceneFilter{ExcludeTagNames: []string{"date_from_scene"}}, 1, 10); err != nil {
 		t.Fatalf("FindScenes: %v", err)
 	}
-	b, _ := json.Marshal(cap.reqs[1].Variables["scene_filter"])
+	b, _ := json.Marshal(capt.reqs[1].Variables["scene_filter"])
 	if !strings.Contains(string(b), "EXCLUDES") || !strings.Contains(string(b), `"9"`) {
 		t.Errorf("filter = %s", b)
 	}
@@ -397,22 +397,22 @@ func TestSceneFilterRefusesBothTagDirections(t *testing.T) {
 // alone — which means it cannot clear a list at all. Removing the last stash
 // id silently did nothing until this existed.
 func TestSetSceneStashIDsSendsAnEmptyList(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"sceneUpdate":{"id":"1"}}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"sceneUpdate":{"id":"1"}}}`))
 	defer srv.Close()
 
 	if err := NewClient(srv.URL).SetSceneStashIDs(context.Background(), "1", nil); err != nil {
 		t.Fatalf("SetSceneStashIDs: %v", err)
 	}
-	b, _ := json.Marshal(cap.reqs[0].Variables["input"])
+	b, _ := json.Marshal(capt.reqs[0].Variables["input"])
 	if !strings.Contains(string(b), `"stash_ids":[]`) {
 		t.Errorf("input = %s, want an explicit empty list", b)
 	}
 }
 
 func TestSetSceneStashIDsKeepsTheOthers(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"sceneUpdate":{"id":"1"}}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"sceneUpdate":{"id":"1"}}}`))
 	defer srv.Close()
 
 	err := NewClient(srv.URL).SetSceneStashIDs(context.Background(), "1",
@@ -420,7 +420,7 @@ func TestSetSceneStashIDsKeepsTheOthers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SetSceneStashIDs: %v", err)
 	}
-	b, _ := json.Marshal(cap.reqs[0].Variables["input"])
+	b, _ := json.Marshal(capt.reqs[0].Variables["input"])
 	if !strings.Contains(string(b), "keep-me") {
 		t.Errorf("input = %s", b)
 	}
@@ -436,14 +436,14 @@ func TestSetSceneStashIDsNeedsASceneID(t *testing.T) {
 // SceneUpdate omits empty fields, so it cannot empty one. A title written
 // over a scene that never had one has to be removable.
 func TestClearSceneFieldsSendsTheRightEmptyValue(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"sceneUpdate":{"id":"1"}}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"sceneUpdate":{"id":"1"}}}`))
 	defer srv.Close()
 
 	if err := NewClient(srv.URL).ClearSceneFields(context.Background(), "1", "title", "urls"); err != nil {
 		t.Fatalf("ClearSceneFields: %v", err)
 	}
-	b, _ := json.Marshal(cap.reqs[0].Variables["input"])
+	b, _ := json.Marshal(capt.reqs[0].Variables["input"])
 	if !strings.Contains(string(b), `"title":""`) {
 		t.Errorf("input = %s, want an empty title", b)
 	}
@@ -463,8 +463,8 @@ func TestClearSceneFieldsRefusesAnythingButAFieldName(t *testing.T) {
 }
 
 func TestFindDuplicateScenesGroupsScenes(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"findDuplicateScenes":[
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"findDuplicateScenes":[
 		[{"id":"1","files":[{"id":"11","size":100}]},{"id":"2","files":[{"id":"22","size":50}]}],
 		[{"id":"3"},{"id":"4"},{"id":"5"}]
 	]}}`))
@@ -489,7 +489,7 @@ func TestFindDuplicateScenesGroupsScenes(t *testing.T) {
 		t.Errorf("files did not decode: %+v", groups[0][0].Files)
 	}
 
-	vars := cap.reqs[0].Variables
+	vars := capt.reqs[0].Variables
 	if vars["distance"] != float64(4) {
 		t.Errorf("distance = %v, want 4", vars["distance"])
 	}

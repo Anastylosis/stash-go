@@ -31,13 +31,13 @@ func sentInput(t *testing.T, req graphqlRequest) map[string]any {
 // URL it returns points at.
 func backupServer(t *testing.T, payload string) (*httptest.Server, *Client, *capture) {
 	t.Helper()
-	cap := &capture{}
+	capt := &capture{}
 	mux := http.NewServeMux()
 	var base string
 	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
 		var req graphqlRequest
 		_ = json.NewDecoder(r.Body).Decode(&req)
-		cap.reqs = append(cap.reqs, req)
+		capt.reqs = append(capt.reqs, req)
 		body := `{"data":{"backupDatabase":"C:\\Users\\me\\.stash\\local.sqlite.85.20260101_000000"}}`
 		if in := sentInput(t, req); in["download"] == true {
 			body = `{"data":{"backupDatabase":"` + base + `/downloads/abc123/local.sqlite.85.20260101_000000"}}`
@@ -50,11 +50,11 @@ func backupServer(t *testing.T, payload string) (*httptest.Server, *Client, *cap
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	base = srv.URL
-	return srv, NewClient(srv.URL), cap
+	return srv, NewClient(srv.URL), capt
 }
 
 func TestBackupDatabaseReturnsServerPath(t *testing.T) {
-	_, c, cap := backupServer(t, "")
+	_, c, capt := backupServer(t, "")
 	path, err := c.BackupDatabase(context.Background(), BackupOptions{})
 	if err != nil {
 		t.Fatalf("BackupDatabase: %v", err)
@@ -64,14 +64,14 @@ func TestBackupDatabaseReturnsServerPath(t *testing.T) {
 	if want := `C:\Users\me\.stash\local.sqlite.85.20260101_000000`; path != want {
 		t.Errorf("path = %q, want %q", path, want)
 	}
-	if got := sentInput(t, cap.reqs[0])["download"]; got != false {
+	if got := sentInput(t, capt.reqs[0])["download"]; got != false {
 		t.Errorf("download = %v, want false", got)
 	}
 }
 
 func TestDownloadBackupStreamsToWriter(t *testing.T) {
 	const payload = "SQLite format 3\x00...the database..."
-	_, c, cap := backupServer(t, payload)
+	_, c, capt := backupServer(t, payload)
 
 	var buf bytes.Buffer
 	name, n, err := c.DownloadBackup(context.Background(), BackupOptions{}, &buf)
@@ -89,18 +89,18 @@ func TestDownloadBackupStreamsToWriter(t *testing.T) {
 	if name != "local.sqlite.85.20260101_000000" {
 		t.Errorf("name = %q", name)
 	}
-	if got := sentInput(t, cap.reqs[0])["download"]; got != true {
+	if got := sentInput(t, capt.reqs[0])["download"]; got != true {
 		t.Errorf("download = %v, want true", got)
 	}
 }
 
 func TestBackupPassesIncludeBlobs(t *testing.T) {
 	for _, want := range []bool{true, false} {
-		_, c, cap := backupServer(t, "x")
+		_, c, capt := backupServer(t, "x")
 		if _, err := c.BackupDatabase(context.Background(), BackupOptions{IncludeBlobs: want}); err != nil {
 			t.Fatalf("BackupDatabase: %v", err)
 		}
-		if got := sentInput(t, cap.reqs[0])["includeBlobs"]; got != want {
+		if got := sentInput(t, capt.reqs[0])["includeBlobs"]; got != want {
 			t.Errorf("includeBlobs = %v, want %v", got, want)
 		}
 	}

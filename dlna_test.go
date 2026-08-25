@@ -35,22 +35,22 @@ func TestDLNAStatusDecodes(t *testing.T) {
 
 // Stash counts in minutes, and an absent duration means "no expiry".
 func TestDLNADurationsBecomeMinutes(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"enableDLNA":true}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"enableDLNA":true}}`))
 	defer srv.Close()
 	c := NewClient(srv.URL)
 
 	if err := c.EnableDLNA(context.Background(), 2*time.Hour); err != nil {
 		t.Fatalf("EnableDLNA: %v", err)
 	}
-	if got := sentInput(t, cap.reqs[0])["duration"]; got != float64(120) {
+	if got := sentInput(t, capt.reqs[0])["duration"]; got != float64(120) {
 		t.Errorf("duration = %v, want 120 minutes", got)
 	}
 
 	if err := c.EnableDLNA(context.Background(), 0); err != nil {
 		t.Fatalf("EnableDLNA: %v", err)
 	}
-	if _, present := sentInput(t, cap.reqs[1])["duration"]; present {
+	if _, present := sentInput(t, capt.reqs[1])["duration"]; present {
 		t.Error("a zero duration sent a duration; it means no expiry, which is the field being absent")
 	}
 }
@@ -58,8 +58,8 @@ func TestDLNADurationsBecomeMinutes(t *testing.T) {
 // Truncating 30s to zero minutes would turn "for half a minute" into
 // "forever", which is the opposite of what was asked.
 func TestDLNARefusesADurationShorterThanAMinute(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"enableDLNA":true}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"enableDLNA":true}}`))
 	defer srv.Close()
 
 	err := NewClient(srv.URL).EnableDLNA(context.Background(), 30*time.Second)
@@ -69,50 +69,50 @@ func TestDLNARefusesADurationShorterThanAMinute(t *testing.T) {
 	if !strings.Contains(err.Error(), "minute") {
 		t.Errorf("error = %q, want it to name the unit", err)
 	}
-	if len(cap.reqs) != 0 {
+	if len(capt.reqs) != 0 {
 		t.Error("the refused call still reached the server")
 	}
 }
 
 func TestDisableDLNA(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"disableDLNA":true}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"disableDLNA":true}}`))
 	defer srv.Close()
 
 	if err := NewClient(srv.URL).DisableDLNA(context.Background(), 15*time.Minute); err != nil {
 		t.Fatalf("DisableDLNA: %v", err)
 	}
-	if !strings.Contains(cap.reqs[0].Query, "disableDLNA") {
-		t.Errorf("query = %q", cap.reqs[0].Query)
+	if !strings.Contains(capt.reqs[0].Query, "disableDLNA") {
+		t.Errorf("query = %q", capt.reqs[0].Query)
 	}
-	if got := sentInput(t, cap.reqs[0])["duration"]; got != float64(15) {
+	if got := sentInput(t, capt.reqs[0])["duration"]; got != float64(15) {
 		t.Errorf("duration = %v", got)
 	}
 }
 
 func TestAllowDLNAIPSendsAddressAndDuration(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"addTempDLNAIP":true}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"addTempDLNAIP":true}}`))
 	defer srv.Close()
 
 	if err := NewClient(srv.URL).AllowDLNAIP(context.Background(), "192.168.1.20", time.Hour); err != nil {
 		t.Fatalf("AllowDLNAIP: %v", err)
 	}
-	in := sentInput(t, cap.reqs[0])
+	in := sentInput(t, capt.reqs[0])
 	if in["address"] != "192.168.1.20" || in["duration"] != float64(60) {
 		t.Errorf("input = %v", in)
 	}
 }
 
 func TestDisallowDLNAIP(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"removeTempDLNAIP":true}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"removeTempDLNAIP":true}}`))
 	defer srv.Close()
 
 	if err := NewClient(srv.URL).DisallowDLNAIP(context.Background(), "192.168.1.20"); err != nil {
 		t.Fatalf("DisallowDLNAIP: %v", err)
 	}
-	if got := sentInput(t, cap.reqs[0])["address"]; got != "192.168.1.20" {
+	if got := sentInput(t, capt.reqs[0])["address"]; got != "192.168.1.20" {
 		t.Errorf("address = %v", got)
 	}
 }

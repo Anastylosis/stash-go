@@ -10,17 +10,17 @@ import (
 // Captions are part of the shared selection set: the supported server has the
 // field, so there is nothing to opt into and no probe to pay for.
 func TestSceneQueriesAlwaysAskForCaptions(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"findScene":{"id":"1"}}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"findScene":{"id":"1"}}}`))
 	defer srv.Close()
 
 	if _, _, err := NewClient(srv.URL).FindScene(context.Background(), "1"); err != nil {
 		t.Fatalf("FindScene: %v", err)
 	}
-	if len(cap.reqs) != 1 {
-		t.Fatalf("made %d requests, want 1 — nothing is probed", len(cap.reqs))
+	if len(capt.reqs) != 1 {
+		t.Fatalf("made %d requests, want 1 — nothing is probed", len(capt.reqs))
 	}
-	if !strings.Contains(cap.reqs[0].Query, "captions") {
+	if !strings.Contains(capt.reqs[0].Query, "captions") {
 		t.Error("the selection set did not ask for captions")
 	}
 }
@@ -62,16 +62,16 @@ func TestNoCaptionsIsNotAnError(t *testing.T) {
 
 // WithCaptions is kept so callers written against it still compile.
 func TestWithCaptionsIsANoOp(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"findScene":{"id":"1"}}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"findScene":{"id":"1"}}}`))
 	defer srv.Close()
 
 	c := NewClient(srv.URL, WithCaptions())
 	if _, _, err := c.FindScene(context.Background(), "1"); err != nil {
 		t.Fatalf("FindScene: %v", err)
 	}
-	if len(cap.reqs) != 1 {
-		t.Errorf("made %d requests with the option set, want 1 — it must not probe", len(cap.reqs))
+	if len(capt.reqs) != 1 {
+		t.Errorf("made %d requests with the option set, want 1 — it must not probe", len(capt.reqs))
 	}
 }
 

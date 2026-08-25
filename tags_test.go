@@ -24,15 +24,15 @@ func TestFindTagByIDDecodes(t *testing.T) {
 }
 
 func TestUpdateTagSendsOnlyWhatIsSet(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"tagUpdate":{"id":"5"}}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"tagUpdate":{"id":"5"}}}`))
 	defer srv.Close()
 
 	if err := NewClient(srv.URL).UpdateTag(context.Background(),
 		TagInput{ID: "5", Description: "Only this."}); err != nil {
 		t.Fatalf("UpdateTag: %v", err)
 	}
-	b, _ := json.Marshal(cap.reqs[0].Variables["input"])
+	b, _ := json.Marshal(capt.reqs[0].Variables["input"])
 	var in map[string]any
 	_ = json.Unmarshal(b, &in)
 	if len(in) != 2 || in["description"] != "Only this." {
@@ -41,8 +41,8 @@ func TestUpdateTagSendsOnlyWhatIsSet(t *testing.T) {
 }
 
 func TestMergeTagsSendsSourcesAndDestination(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"tagsMerge":{"id":"5"}}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"tagsMerge":{"id":"5"}}}`))
 	defer srv.Close()
 
 	name := "the better name"
@@ -50,7 +50,7 @@ func TestMergeTagsSendsSourcesAndDestination(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MergeTags: %v", err)
 	}
-	b, _ := json.Marshal(cap.reqs[0].Variables["input"])
+	b, _ := json.Marshal(capt.reqs[0].Variables["input"])
 	var in map[string]any
 	_ = json.Unmarshal(b, &in)
 	if in["destination"] != "5" {
@@ -81,28 +81,28 @@ func TestMergeTagsRefusesToMergeIntoItself(t *testing.T) {
 }
 
 func TestClearTagFieldsPicksTheRightEmptyValue(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"tagUpdate":{"id":"5"}}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"tagUpdate":{"id":"5"}}}`))
 	defer srv.Close()
 
 	if err := NewClient(srv.URL).ClearTagFields(context.Background(), "5", "description", "aliases"); err != nil {
 		t.Fatalf("ClearTagFields: %v", err)
 	}
-	b, _ := json.Marshal(cap.reqs[0].Variables["input"])
+	b, _ := json.Marshal(capt.reqs[0].Variables["input"])
 	if !strings.Contains(string(b), `"description":""`) || !strings.Contains(string(b), `"aliases":[]`) {
 		t.Errorf("input = %s", b)
 	}
 }
 
 func TestDeleteTagsWithNothingToDo(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{}}`))
 	defer srv.Close()
 	if err := NewClient(srv.URL).DeleteTags(context.Background()); err != nil {
 		t.Fatalf("DeleteTags: %v", err)
 	}
-	if len(cap.reqs) != 0 {
-		t.Errorf("sent %d requests, want none", len(cap.reqs))
+	if len(capt.reqs) != 0 {
+		t.Errorf("sent %d requests, want none", len(capt.reqs))
 	}
 }
 
@@ -119,8 +119,8 @@ func TestTagsPagesAndCounts(t *testing.T) {
 }
 
 func TestCreateTagFromSendsEverythingGiven(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"tagCreate":{"id":"5"}}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"tagCreate":{"id":"5"}}}`))
 	defer srv.Close()
 
 	id, err := NewClient(srv.URL).CreateTagFrom(context.Background(), TagInput{
@@ -133,7 +133,7 @@ func TestCreateTagFromSendsEverythingGiven(t *testing.T) {
 	if id != "5" {
 		t.Errorf("id = %q", id)
 	}
-	b, _ := json.Marshal(cap.reqs[0].Variables["input"])
+	b, _ := json.Marshal(capt.reqs[0].Variables["input"])
 	// A create must not carry an id, even when the caller reused a struct.
 	if strings.Contains(string(b), "leftover") {
 		t.Errorf("input = %s, want no id on a create", b)
@@ -154,15 +154,15 @@ func TestCreateTagFromNeedsAName(t *testing.T) {
 }
 
 func TestDeleteTag(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"tagDestroy":true}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"tagDestroy":true}}`))
 	defer srv.Close()
 	c := NewClient(srv.URL)
 
 	if err := c.DeleteTag(context.Background(), "5"); err != nil {
 		t.Fatalf("DeleteTag: %v", err)
 	}
-	if got := cap.reqs[0].Variables["id"]; got != "5" {
+	if got := capt.reqs[0].Variables["id"]; got != "5" {
 		t.Errorf("id = %v", got)
 	}
 	if err := c.DeleteTag(context.Background(), ""); err == nil {
@@ -171,14 +171,14 @@ func TestDeleteTag(t *testing.T) {
 }
 
 func TestDeleteTagsSendsTheList(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"tagsDestroy":true}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"tagsDestroy":true}}`))
 	defer srv.Close()
 
 	if err := NewClient(srv.URL).DeleteTags(context.Background(), "5", "6"); err != nil {
 		t.Fatalf("DeleteTags: %v", err)
 	}
-	b, _ := json.Marshal(cap.reqs[0].Variables["ids"])
+	b, _ := json.Marshal(capt.reqs[0].Variables["ids"])
 	if string(b) != `["5","6"]` {
 		t.Errorf("ids = %s", b)
 	}

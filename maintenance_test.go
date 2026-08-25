@@ -12,15 +12,15 @@ import (
 )
 
 func TestMigrateSendsTheBackupPath(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"migrate":true}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"migrate":true}}`))
 	defer srv.Close()
 
 	err := NewClient(srv.URL).Migrate(context.Background(), `C:\Users\me\.stash\pre-migration.sqlite`)
 	if err != nil {
 		t.Fatalf("Migrate: %v", err)
 	}
-	if got := sentInput(t, cap.reqs[0])["backupPath"]; got != `C:\Users\me\.stash\pre-migration.sqlite` {
+	if got := sentInput(t, capt.reqs[0])["backupPath"]; got != `C:\Users\me\.stash\pre-migration.sqlite` {
 		t.Errorf("backupPath = %v", got)
 	}
 }
@@ -28,14 +28,14 @@ func TestMigrateSendsTheBackupPath(t *testing.T) {
 // Migrating without a backup is a legitimate thing to ask for — the field is
 // required, so it goes on the wire empty rather than being omitted.
 func TestMigrateWithoutABackupStillSendsTheField(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"migrate":true}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"migrate":true}}`))
 	defer srv.Close()
 
 	if err := NewClient(srv.URL).Migrate(context.Background(), ""); err != nil {
 		t.Fatalf("Migrate: %v", err)
 	}
-	in := sentInput(t, cap.reqs[0])
+	in := sentInput(t, capt.reqs[0])
 	if v, present := in["backupPath"]; !present || v != "" {
 		t.Errorf("backupPath = %v (present=%v), want a present empty string", v, present)
 	}
@@ -43,8 +43,8 @@ func TestMigrateWithoutABackupStillSendsTheField(t *testing.T) {
 
 func TestMigrateBlobsPassesDeleteOld(t *testing.T) {
 	for _, want := range []bool{true, false} {
-		cap := &capture{}
-		srv := httptest.NewServer(cap.handler(`{"data":{"migrateBlobs":"4321"}}`))
+		capt := &capture{}
+		srv := httptest.NewServer(capt.handler(`{"data":{"migrateBlobs":"4321"}}`))
 
 		id, err := NewClient(srv.URL).MigrateBlobs(context.Background(), want)
 		if err != nil {
@@ -53,7 +53,7 @@ func TestMigrateBlobsPassesDeleteOld(t *testing.T) {
 		if id != "4321" {
 			t.Errorf("job id = %q", id)
 		}
-		if got := sentInput(t, cap.reqs[0])["deleteOld"]; got != want {
+		if got := sentInput(t, capt.reqs[0])["deleteOld"]; got != want {
 			t.Errorf("deleteOld = %v, want %v", got, want)
 		}
 		srv.Close()
@@ -61,8 +61,8 @@ func TestMigrateBlobsPassesDeleteOld(t *testing.T) {
 }
 
 func TestMigrateSceneScreenshotsPassesBothFlags(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"migrateSceneScreenshots":"9"}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"migrateSceneScreenshots":"9"}}`))
 	defer srv.Close()
 
 	_, err := NewClient(srv.URL).MigrateSceneScreenshots(context.Background(),
@@ -70,7 +70,7 @@ func TestMigrateSceneScreenshotsPassesBothFlags(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MigrateSceneScreenshots: %v", err)
 	}
-	in := sentInput(t, cap.reqs[0])
+	in := sentInput(t, capt.reqs[0])
 	if in["deleteFiles"] != true || in["overwriteExisting"] != false {
 		t.Errorf("input = %v", in)
 	}
@@ -91,8 +91,8 @@ func TestInputlessJobsReturnTheirID(t *testing.T) {
 			func(c *Client) (string, error) { return c.OptimiseDatabase(context.Background()) }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			cap := &capture{}
-			srv := httptest.NewServer(cap.handler(tc.body))
+			capt := &capture{}
+			srv := httptest.NewServer(capt.handler(tc.body))
 			defer srv.Close()
 
 			id, err := tc.run(NewClient(srv.URL))
@@ -102,8 +102,8 @@ func TestInputlessJobsReturnTheirID(t *testing.T) {
 			if id == "" {
 				t.Errorf("%s returned no job id", tc.name)
 			}
-			if cap.reqs[0].Variables != nil {
-				t.Errorf("%s sent variables: %v", tc.name, cap.reqs[0].Variables)
+			if capt.reqs[0].Variables != nil {
+				t.Errorf("%s sent variables: %v", tc.name, capt.reqs[0].Variables)
 			}
 		})
 	}
@@ -113,13 +113,13 @@ func TestInputlessJobsReturnTheirID(t *testing.T) {
 // returns points at.
 func anonymiseServer(t *testing.T, payload string) (*Client, *capture) {
 	t.Helper()
-	cap := &capture{}
+	capt := &capture{}
 	mux := http.NewServeMux()
 	var base string
 	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
 		var req graphqlRequest
 		_ = json.NewDecoder(r.Body).Decode(&req)
-		cap.reqs = append(cap.reqs, req)
+		capt.reqs = append(capt.reqs, req)
 		body := `{"data":{"anonymiseDatabase":"/root/.stash/anonymous.sqlite"}}`
 		if in := sentInput(t, req); in["download"] == true {
 			body = `{"data":{"anonymiseDatabase":"` + base + `/downloads/xyz/anonymous.sqlite"}}`
@@ -132,11 +132,11 @@ func anonymiseServer(t *testing.T, payload string) (*Client, *capture) {
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	base = srv.URL
-	return NewClient(srv.URL), cap
+	return NewClient(srv.URL), capt
 }
 
 func TestAnonymiseDatabaseReturnsServerPath(t *testing.T) {
-	c, cap := anonymiseServer(t, "")
+	c, capt := anonymiseServer(t, "")
 	path, err := c.AnonymiseDatabase(context.Background())
 	if err != nil {
 		t.Fatalf("AnonymiseDatabase: %v", err)
@@ -144,14 +144,14 @@ func TestAnonymiseDatabaseReturnsServerPath(t *testing.T) {
 	if path != "/root/.stash/anonymous.sqlite" {
 		t.Errorf("path = %q", path)
 	}
-	if got := sentInput(t, cap.reqs[0])["download"]; got != false {
+	if got := sentInput(t, capt.reqs[0])["download"]; got != false {
 		t.Errorf("download = %v, want false", got)
 	}
 }
 
 func TestDownloadAnonymisedDatabaseStreamsToWriter(t *testing.T) {
 	const payload = "SQLite format 3\x00...no names in here..."
-	c, cap := anonymiseServer(t, payload)
+	c, capt := anonymiseServer(t, payload)
 
 	var buf bytes.Buffer
 	name, n, err := c.DownloadAnonymisedDatabase(context.Background(), &buf)
@@ -164,7 +164,7 @@ func TestDownloadAnonymisedDatabaseStreamsToWriter(t *testing.T) {
 	if name != "anonymous.sqlite" {
 		t.Errorf("name = %q", name)
 	}
-	if got := sentInput(t, cap.reqs[0])["download"]; got != true {
+	if got := sentInput(t, capt.reqs[0])["download"]; got != true {
 		t.Errorf("download = %v, want true", got)
 	}
 }

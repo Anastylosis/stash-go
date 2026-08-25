@@ -43,15 +43,15 @@ func TestMetadataScanReturnsJobID(t *testing.T) {
 // that quietly started generating covers, previews and sprites would be a
 // very expensive surprise on a large library.
 func TestMetadataScanGeneratesNothingByDefault(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"metadataScan":"1"}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"metadataScan":"1"}}`))
 	defer srv.Close()
 	c := NewClient(srv.URL)
 
 	if _, err := c.MetadataScan(context.Background(), ScanOptions{Paths: []string{"/v"}}); err != nil {
 		t.Fatalf("MetadataScan: %v", err)
 	}
-	input := scanInput(t, cap.reqs[0])
+	input := scanInput(t, capt.reqs[0])
 	for _, flag := range []string{
 		"scanGeneratePhashes", "scanGenerateCovers", "scanGeneratePreviews",
 		"scanGenerateSprites", "scanGenerateThumbnails",
@@ -66,8 +66,8 @@ func TestMetadataScanGeneratesNothingByDefault(t *testing.T) {
 }
 
 func TestMetadataScanSendsRequestedFlags(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"metadataScan":"1"}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"metadataScan":"1"}}`))
 	defer srv.Close()
 	c := NewClient(srv.URL)
 
@@ -76,7 +76,7 @@ func TestMetadataScanSendsRequestedFlags(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("MetadataScan: %v", err)
 	}
-	input := scanInput(t, cap.reqs[0])
+	input := scanInput(t, capt.reqs[0])
 	if input["rescan"] != true || input["scanGeneratePhashes"] != true {
 		t.Errorf("rescan=%v phashes=%v, want both true", input["rescan"], input["scanGeneratePhashes"])
 	}
@@ -90,15 +90,15 @@ func TestMetadataScanSendsRequestedFlags(t *testing.T) {
 // second as "scan every library path", which on a big library is hours of
 // work nobody asked for. An empty slice must therefore be omitted, not sent.
 func TestMetadataScanOmitsEmptyPaths(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"metadataScan":"1"}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"metadataScan":"1"}}`))
 	defer srv.Close()
 	c := NewClient(srv.URL)
 
 	if _, err := c.MetadataScan(context.Background(), ScanOptions{}); err != nil {
 		t.Fatalf("MetadataScan: %v", err)
 	}
-	if _, present := scanInput(t, cap.reqs[0])["paths"]; present {
+	if _, present := scanInput(t, capt.reqs[0])["paths"]; present {
 		t.Error("an empty Paths was sent as `paths`; it must be omitted entirely")
 	}
 }
@@ -213,8 +213,8 @@ func generateInput(t *testing.T, req graphqlRequest) map[string]any {
 // The same reason MetadataScan generates nothing by default: a generate
 // across a library is hours of work and gigabytes of output.
 func TestMetadataGenerateProducesNothingByDefault(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"metadataGenerate":"12"}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"metadataGenerate":"12"}}`))
 	defer srv.Close()
 
 	id, err := NewClient(srv.URL).MetadataGenerate(context.Background(), GenerateOptions{})
@@ -224,7 +224,7 @@ func TestMetadataGenerateProducesNothingByDefault(t *testing.T) {
 	if id != "12" {
 		t.Errorf("job id = %q", id)
 	}
-	in := generateInput(t, cap.reqs[0])
+	in := generateInput(t, capt.reqs[0])
 	for _, flag := range []string{"covers", "sprites", "phashes", "previews", "transcodes", "overwrite"} {
 		if v, ok := in[flag]; !ok || v != false {
 			t.Errorf("%s = %v (present=%v), want false", flag, v, ok)
@@ -235,15 +235,15 @@ func TestMetadataGenerateProducesNothingByDefault(t *testing.T) {
 // An empty list is not the same request as no list — Stash reads the second
 // as "the whole library".
 func TestMetadataGenerateOmitsEmptyScopes(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"metadataGenerate":"1"}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"metadataGenerate":"1"}}`))
 	defer srv.Close()
 
 	if _, err := NewClient(srv.URL).MetadataGenerate(context.Background(),
 		GenerateOptions{Sprites: true}); err != nil {
 		t.Fatalf("MetadataGenerate: %v", err)
 	}
-	in := generateInput(t, cap.reqs[0])
+	in := generateInput(t, capt.reqs[0])
 	if _, ok := in["sceneIDs"]; ok {
 		t.Error("sceneIDs was sent empty")
 	}
@@ -256,15 +256,15 @@ func TestMetadataGenerateOmitsEmptyScopes(t *testing.T) {
 }
 
 func TestMetadataGenerateScopedToScenes(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"metadataGenerate":"1"}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"metadataGenerate":"1"}}`))
 	defer srv.Close()
 
 	if _, err := NewClient(srv.URL).MetadataGenerate(context.Background(),
 		GenerateOptions{Phashes: true, SceneIDs: []string{"1", "2"}}); err != nil {
 		t.Fatalf("MetadataGenerate: %v", err)
 	}
-	ids, _ := generateInput(t, cap.reqs[0])["sceneIDs"].([]any)
+	ids, _ := generateInput(t, capt.reqs[0])["sceneIDs"].([]any)
 	if len(ids) != 2 {
 		t.Errorf("sceneIDs = %v", ids)
 	}
@@ -273,15 +273,15 @@ func TestMetadataGenerateScopedToScenes(t *testing.T) {
 // An endpoint is a stash-box; anything else is a scraper id, and sending one
 // as the other silently identifies against nothing.
 func TestMetadataIdentifySortsSourcesByShape(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"metadataIdentify":"3"}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"metadataIdentify":"3"}}`))
 	defer srv.Close()
 
 	if _, err := NewClient(srv.URL).MetadataIdentify(context.Background(),
 		IdentifyOptions{Sources: []string{"https://example.test/graphql", "builtin_scraper"}}); err != nil {
 		t.Fatalf("MetadataIdentify: %v", err)
 	}
-	b, _ := json.Marshal(generateInput(t, cap.reqs[0])["sources"])
+	b, _ := json.Marshal(generateInput(t, capt.reqs[0])["sources"])
 	if !strings.Contains(string(b), "stash_box_endpoint") {
 		t.Errorf("sources = %s, want the endpoint recognised", b)
 	}
@@ -293,15 +293,15 @@ func TestMetadataIdentifySortsSourcesByShape(t *testing.T) {
 // Clean deletes the records of files it cannot find, and an unmounted drive
 // looks exactly like a library whose files were all deleted.
 func TestMetadataCleanCarriesDryRun(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"metadataClean":"4"}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"metadataClean":"4"}}`))
 	defer srv.Close()
 
 	if _, err := NewClient(srv.URL).MetadataClean(context.Background(),
 		CleanOptions{DryRun: true}); err != nil {
 		t.Fatalf("MetadataClean: %v", err)
 	}
-	if got := generateInput(t, cap.reqs[0])["dryRun"]; got != true {
+	if got := generateInput(t, capt.reqs[0])["dryRun"]; got != true {
 		t.Errorf("dryRun = %v", got)
 	}
 }
@@ -316,15 +316,15 @@ func TestMetadataAutoTagRefusesAnEmptyRequest(t *testing.T) {
 }
 
 func TestStopJob(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"stopJob":true}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"stopJob":true}}`))
 	defer srv.Close()
 	c := NewClient(srv.URL)
 
 	if err := c.StopJob(context.Background(), "7"); err != nil {
 		t.Fatalf("StopJob: %v", err)
 	}
-	if got := cap.reqs[0].Variables["id"]; got != "7" {
+	if got := capt.reqs[0].Variables["id"]; got != "7" {
 		t.Errorf("id = %v", got)
 	}
 	if err := c.StopJob(context.Background(), ""); err == nil {
@@ -341,15 +341,15 @@ func TestOptimiseDatabaseReturnsAJobID(t *testing.T) {
 }
 
 func TestStopAllJobs(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"stopAllJobs":true}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"stopAllJobs":true}}`))
 	defer srv.Close()
 
 	if err := NewClient(srv.URL).StopAllJobs(context.Background()); err != nil {
 		t.Fatalf("StopAllJobs: %v", err)
 	}
-	if !strings.Contains(cap.reqs[0].Query, "stopAllJobs") {
-		t.Errorf("query = %s", cap.reqs[0].Query)
+	if !strings.Contains(capt.reqs[0].Query, "stopAllJobs") {
+		t.Errorf("query = %s", capt.reqs[0].Query)
 	}
 }
 

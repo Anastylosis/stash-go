@@ -11,14 +11,14 @@ import (
 // SceneUpdate.TagIDs replaces a scene's tags. Adding one has to go through
 // the bulk update's ADD mode, or every other tag on the scene is lost.
 func TestAddSceneTagsUsesAddMode(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"bulkSceneUpdate":[{"id":"1"}]}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"bulkSceneUpdate":[{"id":"1"}]}}`))
 	defer srv.Close()
 
 	if err := NewClient(srv.URL).AddSceneTags(context.Background(), []string{"7"}, "1", "2"); err != nil {
 		t.Fatalf("AddSceneTags: %v", err)
 	}
-	b, _ := json.Marshal(cap.reqs[0].Variables["input"])
+	b, _ := json.Marshal(capt.reqs[0].Variables["input"])
 	var in struct {
 		IDs    []string `json:"ids"`
 		TagIDs struct {
@@ -38,14 +38,14 @@ func TestAddSceneTagsUsesAddMode(t *testing.T) {
 }
 
 func TestRemoveSceneTagsUsesRemoveMode(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"bulkSceneUpdate":[{"id":"1"}]}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"bulkSceneUpdate":[{"id":"1"}]}}`))
 	defer srv.Close()
 
 	if err := NewClient(srv.URL).RemoveSceneTags(context.Background(), []string{"7"}, "1"); err != nil {
 		t.Fatalf("RemoveSceneTags: %v", err)
 	}
-	b, _ := json.Marshal(cap.reqs[0].Variables["input"])
+	b, _ := json.Marshal(capt.reqs[0].Variables["input"])
 	var in struct {
 		TagIDs struct {
 			Mode string `json:"mode"`
@@ -59,8 +59,8 @@ func TestRemoveSceneTagsUsesRemoveMode(t *testing.T) {
 
 // An empty list either side is a request that changes nothing.
 func TestSceneTagsWithNothingToDoMakesNoRequest(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{}}`))
 	defer srv.Close()
 	c := NewClient(srv.URL)
 
@@ -70,20 +70,20 @@ func TestSceneTagsWithNothingToDoMakesNoRequest(t *testing.T) {
 	if err := c.AddSceneTags(context.Background(), []string{"7"}); err != nil {
 		t.Fatalf("AddSceneTags: %v", err)
 	}
-	if len(cap.reqs) != 0 {
-		t.Errorf("sent %d requests, want none", len(cap.reqs))
+	if len(capt.reqs) != 0 {
+		t.Errorf("sent %d requests, want none", len(capt.reqs))
 	}
 }
 
 func TestAddScenePerformersUsesTheRightField(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"bulkSceneUpdate":[{"id":"1"}]}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"bulkSceneUpdate":[{"id":"1"}]}}`))
 	defer srv.Close()
 
 	if err := NewClient(srv.URL).AddScenePerformers(context.Background(), []string{"9"}, "1"); err != nil {
 		t.Fatalf("AddScenePerformers: %v", err)
 	}
-	b, _ := json.Marshal(cap.reqs[0].Variables["input"])
+	b, _ := json.Marshal(capt.reqs[0].Variables["input"])
 	// performer_ids, not tag_ids: sending the wrong one adds a tag whose id
 	// happens to match a performer, which is not visibly wrong afterwards.
 	if !strings.Contains(string(b), `"performer_ids"`) || !strings.Contains(string(b), `"ADD"`) {
@@ -92,14 +92,14 @@ func TestAddScenePerformersUsesTheRightField(t *testing.T) {
 }
 
 func TestRemoveScenePerformersUsesRemoveMode(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"bulkSceneUpdate":[{"id":"1"}]}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"bulkSceneUpdate":[{"id":"1"}]}}`))
 	defer srv.Close()
 
 	if err := NewClient(srv.URL).RemoveScenePerformers(context.Background(), []string{"9"}, "1"); err != nil {
 		t.Fatalf("RemoveScenePerformers: %v", err)
 	}
-	b, _ := json.Marshal(cap.reqs[0].Variables["input"])
+	b, _ := json.Marshal(capt.reqs[0].Variables["input"])
 	if !strings.Contains(string(b), `"REMOVE"`) {
 		t.Errorf("input = %s", b)
 	}

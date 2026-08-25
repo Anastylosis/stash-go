@@ -23,14 +23,14 @@ func TestPluginsDecodes(t *testing.T) {
 }
 
 func TestSetPluginsEnabledSendsTheMap(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"setPluginsEnabled":true}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"setPluginsEnabled":true}}`))
 	defer srv.Close()
 
 	if err := NewClient(srv.URL).SetPluginsEnabled(context.Background(), map[string]bool{"example-plugin": true}); err != nil {
 		t.Fatalf("SetPluginsEnabled: %v", err)
 	}
-	b, _ := json.Marshal(cap.reqs[0].Variables["m"])
+	b, _ := json.Marshal(capt.reqs[0].Variables["m"])
 	if string(b) != `{"example-plugin":true}` {
 		t.Errorf("enabledMap = %s", b)
 	}
@@ -39,21 +39,21 @@ func TestSetPluginsEnabledSendsTheMap(t *testing.T) {
 // An empty map is a request to change nothing, and Stash need not hear about
 // it.
 func TestSetPluginsEnabledEmptyMakesNoRequest(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{}}`))
 	defer srv.Close()
 
 	if err := NewClient(srv.URL).SetPluginsEnabled(context.Background(), nil); err != nil {
 		t.Fatalf("SetPluginsEnabled: %v", err)
 	}
-	if len(cap.reqs) != 0 {
-		t.Errorf("sent %d requests, want none", len(cap.reqs))
+	if len(capt.reqs) != 0 {
+		t.Errorf("sent %d requests, want none", len(capt.reqs))
 	}
 }
 
 func TestInterfaceConfigAsksForTheNamedFields(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"configuration":{"interface":{"javascript":"x","javascriptEnabled":true}}}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"configuration":{"interface":{"javascript":"x","javascriptEnabled":true}}}}`))
 	defer srv.Close()
 
 	got, err := NewClient(srv.URL).InterfaceConfig(context.Background(), "javascript", "javascriptEnabled")
@@ -63,8 +63,8 @@ func TestInterfaceConfigAsksForTheNamedFields(t *testing.T) {
 	if got["javascript"] != "x" || got["javascriptEnabled"] != true {
 		t.Errorf("config = %+v", got)
 	}
-	if !strings.Contains(cap.reqs[0].Query, "javascript javascriptEnabled") {
-		t.Errorf("query = %s", cap.reqs[0].Query)
+	if !strings.Contains(capt.reqs[0].Query, "javascript javascriptEnabled") {
+		t.Errorf("query = %s", capt.reqs[0].Query)
 	}
 }
 
@@ -83,30 +83,30 @@ func TestInterfaceConfigRefusesAnythingButAFieldName(t *testing.T) {
 }
 
 func TestConfigureInterfaceSendsOnlyWhatItWasGiven(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"configureInterface":{"__typename":"ConfigInterfaceResult"}}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"configureInterface":{"__typename":"ConfigInterfaceResult"}}}`))
 	defer srv.Close()
 
 	err := NewClient(srv.URL).ConfigureInterface(context.Background(), map[string]any{"javascriptEnabled": true})
 	if err != nil {
 		t.Fatalf("ConfigureInterface: %v", err)
 	}
-	b, _ := json.Marshal(cap.reqs[0].Variables["input"])
+	b, _ := json.Marshal(capt.reqs[0].Variables["input"])
 	if string(b) != `{"javascriptEnabled":true}` {
 		t.Errorf("input = %s, want only the key given", b)
 	}
 }
 
 func TestReloadPlugins(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"reloadPlugins":true}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"reloadPlugins":true}}`))
 	defer srv.Close()
 
 	if err := NewClient(srv.URL).ReloadPlugins(context.Background()); err != nil {
 		t.Fatalf("ReloadPlugins: %v", err)
 	}
-	if !strings.Contains(cap.reqs[0].Query, "reloadPlugins") {
-		t.Errorf("query = %s", cap.reqs[0].Query)
+	if !strings.Contains(capt.reqs[0].Query, "reloadPlugins") {
+		t.Errorf("query = %s", capt.reqs[0].Query)
 	}
 }
 

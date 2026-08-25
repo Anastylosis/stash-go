@@ -32,8 +32,8 @@ func TestMergeScenesRefusesEmptyArguments(t *testing.T) {
 }
 
 func TestMergeScenesAddressesValuesAtTheDestination(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"sceneMerge":{"id":"5"}}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"sceneMerge":{"id":"5"}}}`))
 	defer srv.Close()
 
 	title := "the surviving title"
@@ -44,7 +44,7 @@ func TestMergeScenesAddressesValuesAtTheDestination(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MergeScenes: %v", err)
 	}
-	in := inputOf(t, cap.reqs[0])
+	in := inputOf(t, capt.reqs[0])
 	values, _ := in["values"].(map[string]any)
 	if values["id"] != "5" {
 		t.Errorf("values.id = %v, want the destination", values["id"])
@@ -55,14 +55,14 @@ func TestMergeScenesAddressesValuesAtTheDestination(t *testing.T) {
 }
 
 func TestDeleteSceneDefaultsToKeepingTheFile(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"sceneDestroy":true}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"sceneDestroy":true}}`))
 	defer srv.Close()
 
 	if err := NewClient(srv.URL).DeleteScene(context.Background(), "5", DeleteOptions{}); err != nil {
 		t.Fatalf("DeleteScene: %v", err)
 	}
-	in := inputOf(t, cap.reqs[0])
+	in := inputOf(t, capt.reqs[0])
 	// Sent explicitly rather than omitted: a caller reading the request should
 	// see that nothing on disk is being touched.
 	for _, key := range []string{"delete_file", "delete_generated", "destroy_file_entry"} {
@@ -76,8 +76,8 @@ func TestDeleteSceneDefaultsToKeepingTheFile(t *testing.T) {
 }
 
 func TestDeleteScenesCarriesOptions(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"scenesDestroy":true}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"scenesDestroy":true}}`))
 	defer srv.Close()
 
 	err := NewClient(srv.URL).DeleteScenes(context.Background(), []string{"5", "6"},
@@ -85,7 +85,7 @@ func TestDeleteScenesCarriesOptions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DeleteScenes: %v", err)
 	}
-	in := inputOf(t, cap.reqs[0])
+	in := inputOf(t, capt.reqs[0])
 	if in["delete_file"] != true || in["delete_generated"] != true || in["destroy_file_entry"] != false {
 		t.Errorf("input = %v", in)
 	}
@@ -95,21 +95,21 @@ func TestDeleteScenesCarriesOptions(t *testing.T) {
 }
 
 func TestDeleteScenesWithNoIDsSendsNothing(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"scenesDestroy":true}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"scenesDestroy":true}}`))
 	defer srv.Close()
 
 	if err := NewClient(srv.URL).DeleteScenes(context.Background(), nil, DeleteOptions{DeleteFile: true}); err != nil {
 		t.Fatalf("DeleteScenes: %v", err)
 	}
-	if len(cap.reqs) != 0 {
-		t.Errorf("sent %d requests for an empty deletion", len(cap.reqs))
+	if len(capt.reqs) != 0 {
+		t.Errorf("sent %d requests for an empty deletion", len(capt.reqs))
 	}
 }
 
 func TestDeleteScenesRefusesAnEmptyID(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"scenesDestroy":true}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"scenesDestroy":true}}`))
 	defer srv.Close()
 
 	// An empty id in the list would delete whatever Stash resolves "" to,
@@ -117,14 +117,14 @@ func TestDeleteScenesRefusesAnEmptyID(t *testing.T) {
 	if err := NewClient(srv.URL).DeleteScenes(context.Background(), []string{"5", ""}, DeleteOptions{}); err == nil {
 		t.Fatal("an empty id was allowed")
 	}
-	if len(cap.reqs) != 0 {
-		t.Errorf("sent %d requests despite the bad id", len(cap.reqs))
+	if len(capt.reqs) != 0 {
+		t.Errorf("sent %d requests despite the bad id", len(capt.reqs))
 	}
 }
 
 func TestMoveFilesRefusesRenamingSeveralAtOnce(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"moveFiles":true}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"moveFiles":true}}`))
 	defer srv.Close()
 
 	err := NewClient(srv.URL).MoveFiles(context.Background(), []string{"5", "6"},
@@ -132,14 +132,14 @@ func TestMoveFilesRefusesRenamingSeveralAtOnce(t *testing.T) {
 	if err == nil {
 		t.Fatal("renaming two files to one name was allowed")
 	}
-	if len(cap.reqs) != 0 {
-		t.Errorf("sent %d requests", len(cap.reqs))
+	if len(capt.reqs) != 0 {
+		t.Errorf("sent %d requests", len(capt.reqs))
 	}
 }
 
 func TestMoveFilesOmitsUnsetDestinationFields(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"moveFiles":true}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"moveFiles":true}}`))
 	defer srv.Close()
 
 	err := NewClient(srv.URL).MoveFiles(context.Background(), []string{"5"},
@@ -147,7 +147,7 @@ func TestMoveFilesOmitsUnsetDestinationFields(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MoveFiles: %v", err)
 	}
-	in := inputOf(t, cap.reqs[0])
+	in := inputOf(t, capt.reqs[0])
 	if in["destination_folder_id"] != "12" {
 		t.Errorf("destination_folder_id = %v", in["destination_folder_id"])
 	}
@@ -169,15 +169,15 @@ func TestMoveFilesNeedsADestination(t *testing.T) {
 }
 
 func TestDestroyFilesWithNoIDsSendsNothing(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"destroyFiles":true}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"destroyFiles":true}}`))
 	defer srv.Close()
 
 	if err := NewClient(srv.URL).DestroyFiles(context.Background()); err != nil {
 		t.Fatalf("DestroyFiles: %v", err)
 	}
-	if len(cap.reqs) != 0 {
-		t.Errorf("sent %d requests", len(cap.reqs))
+	if len(capt.reqs) != 0 {
+		t.Errorf("sent %d requests", len(capt.reqs))
 	}
 }
 
@@ -193,8 +193,8 @@ func TestAssignFileNeedsBothIDs(t *testing.T) {
 }
 
 func TestFindSceneByHashPicksTheFieldForTheAlgorithm(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"findSceneByHash":{"id":"5"}}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"findSceneByHash":{"id":"5"}}}`))
 	defer srv.Close()
 	c := NewClient(srv.URL)
 
@@ -206,7 +206,7 @@ func TestFindSceneByHashPicksTheFieldForTheAlgorithm(t *testing.T) {
 		if _, _, err := c.FindSceneByHash(context.Background(), tc.algorithm, "abc"); err != nil {
 			t.Fatalf("FindSceneByHash(%s): %v", tc.algorithm, err)
 		}
-		in := inputOf(t, cap.reqs[len(cap.reqs)-1])
+		in := inputOf(t, capt.reqs[len(capt.reqs)-1])
 		if in[tc.field] != "abc" {
 			t.Errorf("%s went to %v, want %s", tc.algorithm, in, tc.field)
 		}
@@ -214,8 +214,8 @@ func TestFindSceneByHashPicksTheFieldForTheAlgorithm(t *testing.T) {
 }
 
 func TestFindSceneByHashRejectsPhash(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"findSceneByHash":null}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"findSceneByHash":null}}`))
 	defer srv.Close()
 
 	// phash is a similarity hash and this query is an exact lookup; accepting
@@ -224,8 +224,8 @@ func TestFindSceneByHashRejectsPhash(t *testing.T) {
 	if err == nil {
 		t.Fatal("phash was accepted")
 	}
-	if len(cap.reqs) != 0 {
-		t.Errorf("sent %d requests", len(cap.reqs))
+	if len(capt.reqs) != 0 {
+		t.Errorf("sent %d requests", len(capt.reqs))
 	}
 }
 
@@ -282,8 +282,8 @@ func TestFindFileDecodesVideoFields(t *testing.T) {
 }
 
 func TestSetFingerprintsSendsAList(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"fileSetFingerprints":true}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"fileSetFingerprints":true}}`))
 	defer srv.Close()
 
 	err := NewClient(srv.URL).SetFingerprints(context.Background(), "55",
@@ -291,7 +291,7 @@ func TestSetFingerprintsSendsAList(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SetFingerprints: %v", err)
 	}
-	in := inputOf(t, cap.reqs[0])
+	in := inputOf(t, capt.reqs[0])
 	list, _ := in["fingerprints"].([]any)
 	if len(list) != 1 {
 		t.Fatalf("fingerprints = %v", in["fingerprints"])
@@ -303,8 +303,8 @@ func TestSetFingerprintsSendsAList(t *testing.T) {
 }
 
 func TestSetFingerprintsSendsAnEmptyListNotNull(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"fileSetFingerprints":true}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"fileSetFingerprints":true}}`))
 	defer srv.Close()
 
 	// Clearing every fingerprint is a legitimate ask; a null would fail the
@@ -312,7 +312,7 @@ func TestSetFingerprintsSendsAnEmptyListNotNull(t *testing.T) {
 	if err := NewClient(srv.URL).SetFingerprints(context.Background(), "55", nil); err != nil {
 		t.Fatalf("SetFingerprints: %v", err)
 	}
-	in := inputOf(t, cap.reqs[0])
+	in := inputOf(t, capt.reqs[0])
 	list, ok := in["fingerprints"].([]any)
 	if !ok || len(list) != 0 {
 		t.Errorf("fingerprints = %v", in["fingerprints"])
@@ -320,8 +320,8 @@ func TestSetFingerprintsSendsAnEmptyListNotNull(t *testing.T) {
 }
 
 func TestFindScenesByPathRegexPassesThePatternAsQ(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"findScenesByPathRegex":{"count":66,"scenes":[{"id":"55"}]}}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"findScenesByPathRegex":{"count":66,"scenes":[{"id":"55"}]}}}`))
 	defer srv.Close()
 
 	scenes, total, err := NewClient(srv.URL).FindScenesByPathRegex(context.Background(), `S\d\dE\d\d`, 1, 3)
@@ -331,7 +331,7 @@ func TestFindScenesByPathRegexPassesThePatternAsQ(t *testing.T) {
 	if total != 66 || len(scenes) != 1 {
 		t.Errorf("total=%d scenes=%d", total, len(scenes))
 	}
-	b, _ := json.Marshal(cap.reqs[0].Variables["filter"])
+	b, _ := json.Marshal(capt.reqs[0].Variables["filter"])
 	var filter map[string]any
 	_ = json.Unmarshal(b, &filter)
 	if filter["q"] != `S\d\dE\d\d` {
@@ -361,15 +361,15 @@ func TestMergeScenesCarriesHistoryOnlyWhenAsked(t *testing.T) {
 		{"both", MergeOptions{PlayHistory: true, OHistory: true}, map[string]bool{"play_history": true, "o_history": true}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			cap := &capture{}
-			srv := httptest.NewServer(cap.handler(`{"data":{"sceneMerge":{"id":"5"}}}`))
+			capt := &capture{}
+			srv := httptest.NewServer(capt.handler(`{"data":{"sceneMerge":{"id":"5"}}}`))
 			defer srv.Close()
 
 			err := NewClient(srv.URL).MergeScenes(context.Background(), "5", []string{"6"}, nil, tc.opts)
 			if err != nil {
 				t.Fatalf("MergeScenes: %v", err)
 			}
-			in := inputOf(t, cap.reqs[0])
+			in := inputOf(t, capt.reqs[0])
 			for field, want := range tc.want {
 				got, present := in[field]
 				if present != want {
@@ -384,14 +384,14 @@ func TestMergeScenesCarriesHistoryOnlyWhenAsked(t *testing.T) {
 }
 
 func TestSetPrimaryFileAddressesTheScene(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{"sceneUpdate":{"id":"5"}}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{"sceneUpdate":{"id":"5"}}}`))
 	defer srv.Close()
 
 	if err := NewClient(srv.URL).SetPrimaryFile(context.Background(), "5", "77"); err != nil {
 		t.Fatalf("SetPrimaryFile: %v", err)
 	}
-	in := inputOf(t, cap.reqs[0])
+	in := inputOf(t, capt.reqs[0])
 	if in["id"] != "5" {
 		t.Errorf("id = %v, want 5", in["id"])
 	}
@@ -438,14 +438,14 @@ func TestFileRemovalCallsSendDistinctMutations(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			cap := &capture{}
-			srv := httptest.NewServer(cap.handler(`{"data":{"` + tc.mutation + `":true}}`))
+			capt := &capture{}
+			srv := httptest.NewServer(capt.handler(`{"data":{"` + tc.mutation + `":true}}`))
 			defer srv.Close()
 
 			if err := tc.call(NewClient(srv.URL)); err != nil {
 				t.Fatalf("%s: %v", tc.name, err)
 			}
-			q := cap.reqs[0].Query
+			q := capt.reqs[0].Query
 			if !strings.Contains(q, tc.mutation) {
 				t.Errorf("query did not call %s: %s", tc.mutation, q)
 			}
@@ -459,8 +459,8 @@ func TestFileRemovalCallsSendDistinctMutations(t *testing.T) {
 }
 
 func TestFileRemovalCallsIgnoreAnEmptyList(t *testing.T) {
-	cap := &capture{}
-	srv := httptest.NewServer(cap.handler(`{"data":{}}`))
+	capt := &capture{}
+	srv := httptest.NewServer(capt.handler(`{"data":{}}`))
 	defer srv.Close()
 	c := NewClient(srv.URL)
 
@@ -470,7 +470,7 @@ func TestFileRemovalCallsIgnoreAnEmptyList(t *testing.T) {
 	if err := c.DestroyFiles(context.Background()); err != nil {
 		t.Errorf("DestroyFiles: %v", err)
 	}
-	if len(cap.reqs) != 0 {
-		t.Errorf("made %d request(s) for no files", len(cap.reqs))
+	if len(capt.reqs) != 0 {
+		t.Errorf("made %d request(s) for no files", len(capt.reqs))
 	}
 }

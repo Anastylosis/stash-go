@@ -263,8 +263,8 @@ func TestLiveCaptionsSelection(t *testing.T) {
 	// Captions are in the shared selection set, so every scene query carries
 	// them and a scene with subtitles decodes without asking for anything.
 	for _, s := range scenes {
-		for _, cap := range s.Captions {
-			if cap.LanguageCode == "" {
+		for _, capt := range s.Captions {
+			if capt.LanguageCode == "" {
 				t.Errorf("scene %s has a caption with no language code", s.ID)
 			}
 		}
