@@ -31,3 +31,7 @@ jobs:
       # outbound network. Anything reaching a real Stash would be a bug.
       offline-isolation: true
       platform-tests: true
+      # integration_test.go is behind //go:build integration, so nothing in CI
+      # compiles it today. Static only: `go vet -tags=integration` type-checks
+      # the file without executing it, so no live Stash is contacted.
+      vet-integration-tag: true
