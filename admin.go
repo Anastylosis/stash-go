@@ -254,10 +254,10 @@ func (c *Client) ClearAPIKey(ctx context.Context) error {
 	return nil
 }
 
-func (c *Client) apiKeyMutation(ctx context.Context, clear bool) (string, error) {
+func (c *Client) apiKeyMutation(ctx context.Context, revoke bool) (string, error) {
 	data, err := c.do(ctx, graphqlRequest{
 		Query:     `mutation($input: GenerateAPIKeyInput!) { generateAPIKey(input: $input) }`,
-		Variables: map[string]any{"input": map[string]any{"clear": clear}},
+		Variables: map[string]any{"input": map[string]any{"clear": revoke}},
 	})
 	if err != nil {
 		return "", err

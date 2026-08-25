@@ -88,12 +88,6 @@ query FindScenes($filter: FindFilterType, $scene_filter: SceneFilterType) {
 }`
 }
 
-// FindScenes returns one page of scenes plus the total count matching the
-// filter. Pages are 1-based and sorted by path, so paging is stable.
-//
-// A filter naming a performer or studio that does not exist returns
-// [ErrPerformerNotFound] or [ErrStudioNotFound] rather than an empty page —
-// otherwise a typo is indistinguishable from a genuine zero-result query.
 // SceneFilterCriteria renders a [SceneFilter] as the criterion map Stash
 // speaks, resolving performer, studio and tag names to ids on the way.
 //
@@ -229,6 +223,12 @@ func (c *Client) SceneFilterCriteria(ctx context.Context, filter SceneFilter) (m
 	return sceneFilter, nil
 }
 
+// FindScenes returns one page of scenes plus the total count matching the
+// filter. Pages are 1-based and sorted by path, so paging is stable.
+//
+// A filter naming a performer or studio that does not exist returns
+// [ErrPerformerNotFound] or [ErrStudioNotFound] rather than an empty page —
+// otherwise a typo is indistinguishable from a genuine zero-result query.
 func (c *Client) FindScenes(ctx context.Context, filter SceneFilter, page, perPage int) ([]Scene, int, error) {
 	sceneFilter, err := c.SceneFilterCriteria(ctx, filter)
 	if err != nil {

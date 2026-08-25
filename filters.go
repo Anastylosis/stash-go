@@ -9,6 +9,7 @@ import (
 // FilterMode is which list a saved filter belongs to.
 type FilterMode string
 
+// FilterMode values, one per list a saved filter can belong to.
 const (
 	FilterScenes       FilterMode = "SCENES"
 	FilterPerformers   FilterMode = "PERFORMERS"

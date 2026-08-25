@@ -9,6 +9,7 @@ import (
 // PackageType selects which of Stash's two package managers a call talks to.
 type PackageType string
 
+// PackageType values, one per package manager Stash exposes.
 const (
 	PackagePlugin  PackageType = "Plugin"
 	PackageScraper PackageType = "Scraper"

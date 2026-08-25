@@ -85,7 +85,6 @@ func (f *File) Fingerprint(kind string) (string, bool) {
 	return "", false
 }
 
-// Fingerprint is one content hash of a file.
 // Caption is one subtitle track Stash has attached to a scene. Stash
 // discovers these by scanning for sidecar files next to the video; they are
 // read-only in GraphQL, so a caption cannot be attached over the API — only
@@ -101,6 +100,7 @@ type Caption struct {
 	CaptionType  string `json:"caption_type"`
 }
 
+// Fingerprint is one content hash of a file.
 type Fingerprint struct {
 	Type  string `json:"type"`
 	Value string `json:"value"`

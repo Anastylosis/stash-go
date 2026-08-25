@@ -75,6 +75,7 @@ func (c *Client) MetadataScan(ctx context.Context, opts ScanOptions) (jobID stri
 // normalisation of it.
 type JobStatus string
 
+// JobStatus values, Stash's own vocabulary for a job's progress.
 const (
 	JobReady     JobStatus = "READY"
 	JobRunning   JobStatus = "RUNNING"
