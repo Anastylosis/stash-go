@@ -100,6 +100,18 @@ if f := scene.PrimaryFile(); f != nil {
 nil for a scene with no files. `Fingerprint` looks up a hash by type
 (`"oshash"`, `"phash"`, `"md5"`).
 
+`Tier` classes a file by its pixel dimensions rather than by Stash's
+`resolution` label, which libraries get wrong (720x404 labelled HD, square
+cover art labelled 8K). Bands are on the longer side, so 4K is not 1080-tier
+and a portrait file counts by its height:
+
+```go
+if f.Tier() == stash.Tier1080 { // 1920 <= longer side < 2560
+    // a genuine Full HD copy, not a 4K one
+}
+t := stash.TierOf(3840, 2160) // stash.Tier4K
+```
+
 A scene has more than one file when Stash has attached re-detected duplicates
 to it, which is the case deduplication tools care about — see
 [Deduplication, deletion and files](#deduplication-deletion-and-files).
