@@ -27,6 +27,12 @@ type Scene struct {
 	PlayDuration float64 `json:"play_duration"`
 	LastPlayedAt *string `json:"last_played_at"`
 	ResumeTime   float64 `json:"resume_time"`
+
+	// CreatedAt and UpdatedAt are the record's timestamps, as the server
+	// formats them; pass UpdatedAt back as [SceneFilter.UpdatedAfter] to
+	// mirror incrementally.
+	CreatedAt string `json:"created_at"`
+	UpdatedAt string `json:"updated_at"`
 }
 
 // SceneGroup is a scene's membership of a group — what Stash called a movie

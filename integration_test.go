@@ -639,7 +639,7 @@ func TestLiveAdminSchemaShapes(t *testing.T) {
 		{"SceneUpdateInput", []string{"id", "primary_file_id"}},
 		{"SceneFilterType", []string{"file_count", "stash_id_endpoint", "path", "date"}},
 		{"ScrapeMultiScenesInput", []string{"scene_ids"}},
-		{"Scene", []string{"captions", "groups", "play_count", "play_duration", "last_played_at", "resume_time"}},
+		{"Scene", []string{"captions", "groups", "play_count", "play_duration", "last_played_at", "resume_time", "created_at", "updated_at"}},
 		{"SystemStatus", []string{"status", "databaseSchema", "appSchema", "databasePath", "configPath"}},
 		{"Version", []string{"version", "hash", "build_time"}},
 		{"LogEntry", []string{"time", "level", "message"}},

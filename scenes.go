@@ -51,7 +51,9 @@ const SceneFields = `
   play_count
   play_duration
   last_played_at
-  resume_time`
+  resume_time
+  created_at
+  updated_at`
 
 // FindScene returns one scene by ID. found is false when no scene has that ID,
 // which is not an error.

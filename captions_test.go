@@ -79,11 +79,15 @@ func TestSceneGroupsAndPlaybackDecode(t *testing.T) {
 	_, c := server(t, reply(`{"data":{"findScene":{"id":"1",
 		"groups":[{"group":{"id":"7","name":"A Series"},"scene_index":3}],
 		"play_count":12,"play_duration":3456.7,"resume_time":120.5,
-		"last_played_at":"2026-08-01T10:00:00Z"}}}`))
+		"last_played_at":"2026-08-01T10:00:00Z",
+		"created_at":"2026-07-01T09:00:00Z","updated_at":"2026-08-02T11:00:00Z"}}}`))
 
 	scene, _, err := c.FindScene(context.Background(), "1")
 	if err != nil {
 		t.Fatalf("FindScene: %v", err)
+	}
+	if scene.CreatedAt != "2026-07-01T09:00:00Z" || scene.UpdatedAt != "2026-08-02T11:00:00Z" {
+		t.Errorf("timestamps = %q / %q", scene.CreatedAt, scene.UpdatedAt)
 	}
 	if len(scene.Groups) != 1 || scene.Groups[0].Group.Name != "A Series" {
 		t.Fatalf("groups = %+v", scene.Groups)
