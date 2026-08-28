@@ -281,6 +281,30 @@ Two things about the transfer are easy to get wrong:
   decoding a GraphQL response into memory; this is a stream to a writer you
   chose.
 
+A backup is only worth having if it is intact, and the two ways a downloaded
+one arrives broken are both silent. A proxy or login page answering the
+download URL writes HTML into a file called `local.sqlite`; a connection
+dropped mid-transfer writes a prefix of the database, which opens fine and is
+missing the end of the library. `DownloadVerifiedBackup` catches both from the
+SQLite header alone — the magic string, and a page count the file's length has
+to agree with — and only then gives the file the server's name:
+
+```go
+m, err := c.DownloadVerifiedBackup(ctx, stash.BackupOptions{IncludeBlobs: true}, "backups")
+if errors.Is(err, stash.ErrNotSQLite) || errors.Is(err, stash.ErrTruncatedBackup) {
+	// nothing was kept; the .part file is gone
+}
+// backups/local.sqlite.85.20260101_000000
+// backups/local.sqlite.85.20260101_000000.manifest.json
+fmt.Println(m.File, m.Bytes, m.SHA256, m.Server.Version, m.Server.SceneCount)
+```
+
+The manifest beside the file records its size and SHA-256 and which server it
+came from — version, schema, OS, database path, scene count — because a file
+called `local.sqlite` says nothing about which Stash it belongs to. A server
+that is not `Ready()` is refused before anything is downloaded. `VerifySQLite`
+is the check on its own, for a file you already have.
+
 `BackupDatabase` is the other half: it leaves the backup on the server and
 returns the path it wrote.
 
