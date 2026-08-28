@@ -509,6 +509,31 @@ func TestFindDuplicateScenesEmptyLibrary(t *testing.T) {
 	}
 }
 
+func TestSceneFilterUpdatedAfterCriterion(t *testing.T) {
+	_, c := server(t, reply(`{"data":{}}`))
+	ctx := context.Background()
+
+	got, err := c.SceneFilterCriteria(ctx, SceneFilter{UpdatedAfter: "2026-08-01T00:00:00Z"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	crit, ok := got["updated_at"].(map[string]any)
+	if !ok {
+		t.Fatalf("no updated_at criterion in %v", got)
+	}
+	if crit["modifier"] != "GREATER_THAN" || crit["value"] != "2026-08-01T00:00:00Z" {
+		t.Errorf("updated_at = %v, want GREATER_THAN the timestamp", crit)
+	}
+
+	got, err = c.SceneFilterCriteria(ctx, SceneFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, present := got["updated_at"]; present {
+		t.Errorf("empty UpdatedAfter sent an updated_at criterion: %v", got)
+	}
+}
+
 func TestSceneFilterMultiFileCriterion(t *testing.T) {
 	_, c := server(t, reply(`{"data":{}}`))
 	ctx := context.Background()

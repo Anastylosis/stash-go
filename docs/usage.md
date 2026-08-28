@@ -155,6 +155,16 @@ if errors.Is(err, stash.ErrPerformerNotFound) {
 Stash itself answers a bad name with zero results and no error, which is why
 this distinction is worth an extra lookup.
 
+To mirror incrementally, keep the newest `updated_at` you have seen and ask
+only for what changed since:
+
+```go
+changed, _, err := c.FindScenes(ctx, stash.SceneFilter{UpdatedAfter: since}, 1, 100)
+```
+
+`UpdatedAfter` is exclusive and takes RFC 3339 or Stash's own
+`"2006-01-02 15:04:05"`.
+
 To find scenes lacking stash-box metadata:
 
 ```go

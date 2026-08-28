@@ -212,6 +212,13 @@ func (c *Client) SceneFilterCriteria(ctx context.Context, filter SceneFilter) (m
 		}
 	}
 
+	if filter.UpdatedAfter != "" {
+		sceneFilter["updated_at"] = map[string]any{
+			"value":    filter.UpdatedAfter,
+			"modifier": "GREATER_THAN",
+		}
+	}
+
 	if filter.MultiFile != nil {
 		modifier := "EQUALS"
 		if *filter.MultiFile {

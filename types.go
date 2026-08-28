@@ -257,4 +257,10 @@ type SceneFilter struct {
 	// neither: an absent date is not an early one.
 	DateBefore string `json:"-"`
 	DateAfter  string `json:"-"`
+
+	// UpdatedAfter selects scenes whose record changed after this
+	// timestamp, exclusive, in RFC 3339 or Stash's "2006-01-02 15:04:05".
+	// Remember the newest updated_at seen and pass it next time to mirror
+	// a library incrementally.
+	UpdatedAfter string `json:"-"`
 }
