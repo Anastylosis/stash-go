@@ -116,6 +116,16 @@ A scene has more than one file when Stash has attached re-detected duplicates
 to it, which is the case deduplication tools care about — see
 [Deduplication, deletion and files](#deduplication-deletion-and-files).
 
+`ParseFilename` reads date, title and performers out of a basename that
+follows the convention `YYYY-MM-DD_Performers-Title_Resolution.ext` — Stash's
+own scan-time parser doesn't handle multiple performers or a dashed title.
+It reports `false`, not an error, for anything else:
+
+```go
+pf, ok := stash.ParseFilename("2024-12-15_Some.Performer-A.Long.Title_1080p.mp4")
+// pf.Date == "2024-12-15", pf.Title == "A Long Title", pf.Performers == []string{"Some Performer"}
+```
+
 ### Filtering by date
 
 ```go
