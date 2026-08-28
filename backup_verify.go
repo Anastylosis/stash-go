@@ -29,6 +29,10 @@ var (
 	// describes more bytes than the file has. A transfer that dropped
 	// mid-stream looks like this, and the prefix it leaves opens fine.
 	ErrTruncatedBackup = errors.New("stash: truncated backup")
+	// ErrBlobsNotVerifiable means [BackupOptions.IncludeBlobs] was set: a
+	// server keeping blobs on disk then answers with a zip of database and
+	// blobs, which is not a SQLite file and cannot be checked.
+	ErrBlobsNotVerifiable = errors.New("stash: a backup with blobs cannot be verified")
 )
 
 // VerifySQLite reports whether r, of exactly size bytes, is a whole SQLite
@@ -128,8 +132,12 @@ const ManifestSuffix = ".manifest.json"
 // The server is described before the backup is taken, and one that is not
 // [SystemStatus.Ready] is refused: a database mid-migration is the one
 // moment the file on disk is least worth having. Everything
-// [Client.DownloadBackup] says about timeouts applies here too.
+// [Client.DownloadBackup] says about timeouts applies here too. Blobs cannot
+// be included — see [ErrBlobsNotVerifiable].
 func (c *Client) DownloadVerifiedBackup(ctx context.Context, opts BackupOptions, dir string) (BackupManifest, error) {
+	if opts.IncludeBlobs {
+		return BackupManifest{}, ErrBlobsNotVerifiable
+	}
 	server, err := c.describeForBackup(ctx)
 	if err != nil {
 		return BackupManifest{}, err

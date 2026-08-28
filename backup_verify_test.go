@@ -232,3 +232,11 @@ func TestDownloadVerifiedBackupRefusesUnreadyServer(t *testing.T) {
 		t.Fatalf("err = %v, want a not-ready error naming the status", err)
 	}
 }
+
+func TestDownloadVerifiedBackupRefusesBlobs(t *testing.T) {
+	_, c := server(t, reply(`{}`))
+	_, err := c.DownloadVerifiedBackup(context.Background(), BackupOptions{IncludeBlobs: true}, t.TempDir())
+	if !errors.Is(err, ErrBlobsNotVerifiable) {
+		t.Fatalf("err = %v, want ErrBlobsNotVerifiable", err)
+	}
+}

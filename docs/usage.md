@@ -297,10 +297,12 @@ download URL writes HTML into a file called `local.sqlite`; a connection
 dropped mid-transfer writes a prefix of the database, which opens fine and is
 missing the end of the library. `DownloadVerifiedBackup` catches both from the
 SQLite header alone — the magic string, and a page count the file's length has
-to agree with — and only then gives the file the server's name:
+to agree with — and only then gives the file the server's name. It refuses
+`IncludeBlobs`: a server that keeps blobs on disk answers that request with a
+zip of database and blobs, which is not a SQLite file and cannot be checked.
 
 ```go
-m, err := c.DownloadVerifiedBackup(ctx, stash.BackupOptions{IncludeBlobs: true}, "backups")
+m, err := c.DownloadVerifiedBackup(ctx, stash.BackupOptions{}, "backups")
 if errors.Is(err, stash.ErrNotSQLite) || errors.Is(err, stash.ErrTruncatedBackup) {
 	// nothing was kept; the .part file is gone
 }
