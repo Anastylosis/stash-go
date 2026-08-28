@@ -528,6 +528,26 @@ a scene the merge is about to delete.
 A source that is also the destination is refused rather than passed on: Stash
 would fold the scene into itself and delete it.
 
+Stash does not union the rest either: a tag or performer only a source had is
+gone with the source unless the values put it on the destination. `Union`
+computes those values from the scenes themselves, per field, and reports the
+stash IDs it had to drop because two scenes claimed different remote entries
+on the same stash-box:
+
+```go
+values, conflicts := stash.Union(keep, sources, stash.DefaultUnionPolicy())
+for _, c := range conflicts {
+    log.Printf("%s: kept %s, dropped %s", c.Endpoint, c.Kept, c.Dropped)
+}
+err := c.MergeScenes(ctx, keep.ID, ids, &values, stash.MergeOptions{})
+```
+
+The default policy keeps the destination's scalars unless they are empty,
+unions the lists, takes the highest rating and marks the result organized if
+any copy was. Each field's `FieldPolicy` can be set otherwise; the zero policy
+touches nothing. The update comes back partial, and zero when there is nothing
+to carry over.
+
 `MergeOptions` is what the merge carries besides the files. Both fields
 default to false, matching Stash's own default, which discards the sources'
 watch history. When the scenes really are the same content that is the wrong
